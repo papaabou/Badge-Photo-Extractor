@@ -17,6 +17,11 @@ const BADGE_FORMATS = {
   square: { ratio: 1, outW: 600, outH: 600 },
 };
 
+/* Clé d'accès Web3Forms pour le formulaire de contact.
+   Créez une clé gratuite sur https://web3forms.com avec votre adresse email,
+   puis remplacez la valeur ci-dessous par la clé obtenue. */
+const WEB3FORMS_ACCESS_KEY = "METTRE_LA_CLE_ICI";
+
 /* ---------- Références DOM ---------- */
 
 const dropzone = document.getElementById("dropzone");
@@ -43,6 +48,16 @@ const downloadAllBtn = document.getElementById("downloadAllBtn");
 const emptyState = document.getElementById("emptyState");
 const gallery = document.getElementById("gallery");
 const photoCardTemplate = document.getElementById("photoCardTemplate");
+
+const footerEmail = document.getElementById("footerEmail");
+const copyEmailBtn = document.getElementById("copyEmailBtn");
+
+const openContactBtn = document.getElementById("openContactBtn");
+const closeContactBtn = document.getElementById("closeContactBtn");
+const contactModalOverlay = document.getElementById("contactModalOverlay");
+const contactForm = document.getElementById("contactForm");
+const contactSubmitBtn = document.getElementById("contactSubmitBtn");
+const contactFeedback = document.getElementById("contactFeedback");
 
 /* ---------- État de l'application ---------- */
 
@@ -769,3 +784,115 @@ function formatFileSize(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
+
+/* ===========================================================
+   Email de contact protégé contre le scraping
+   (assemblé en JS au chargement, jamais écrit en clair dans le HTML)
+   =========================================================== */
+
+(function setupProtectedEmail() {
+  const localPart = "papeaboumbaye";
+  const domain = "gmail.com";
+  const email = `${localPart}@${domain}`;
+
+  if (footerEmail) {
+    const link = document.createElement("a");
+    link.href = `mailto:${email}`;
+    link.textContent = email;
+    footerEmail.appendChild(link);
+  }
+
+  copyEmailBtn?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(email);
+      const original = copyEmailBtn.textContent;
+      copyEmailBtn.textContent = "✅";
+      copyEmailBtn.disabled = true;
+      setTimeout(() => {
+        copyEmailBtn.textContent = original;
+        copyEmailBtn.disabled = false;
+      }, 1500);
+    } catch (err) {
+      // Copie ignorée si l'API Clipboard est indisponible (ex: contexte non sécurisé)
+    }
+  });
+})();
+
+/* ===========================================================
+   Modal + formulaire de contact (Web3Forms)
+   =========================================================== */
+
+function openContactModal() {
+  contactModalOverlay.hidden = false;
+  document.body.style.overflow = "hidden";
+  document.getElementById("contactName")?.focus();
+}
+
+function closeContactModal() {
+  contactModalOverlay.hidden = true;
+  document.body.style.overflow = "";
+}
+
+openContactBtn?.addEventListener("click", openContactModal);
+closeContactBtn?.addEventListener("click", closeContactModal);
+
+contactModalOverlay?.addEventListener("click", (e) => {
+  if (e.target === contactModalOverlay) closeContactModal();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && contactModalOverlay && !contactModalOverlay.hidden) {
+    closeContactModal();
+  }
+});
+
+function setContactFeedback(message, type) {
+  contactFeedback.textContent = message;
+  contactFeedback.className = `contact-feedback${type ? ` ${type}` : ""}`;
+}
+
+contactForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  if (!WEB3FORMS_ACCESS_KEY || WEB3FORMS_ACCESS_KEY === "METTRE_LA_CLE_ICI") {
+    setContactFeedback(
+      "Le formulaire n'est pas encore configuré (clé Web3Forms manquante).",
+      "error"
+    );
+    return;
+  }
+
+  const formData = new FormData(contactForm);
+  formData.append("access_key", WEB3FORMS_ACCESS_KEY);
+
+  contactSubmitBtn.disabled = true;
+  contactSubmitBtn.textContent = "Envoi en cours…";
+  setContactFeedback("", "");
+
+  try {
+    const response = await fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      body: formData,
+    });
+    const result = await response.json();
+
+    if (response.ok && result.success) {
+      setContactFeedback("Message envoyé, je vous répondrai vite !", "success");
+      contactForm.reset();
+    } else {
+      setContactFeedback(
+        "Une erreur est survenue lors de l'envoi. Merci de réessayer ou de m'écrire directement par email.",
+        "error"
+      );
+    }
+  } catch (err) {
+    setContactFeedback(
+      "Une erreur est survenue lors de l'envoi. Merci de réessayer ou de m'écrire directement par email.",
+      "error"
+    );
+  } finally {
+    contactSubmitBtn.disabled = false;
+    contactSubmitBtn.textContent = "Envoyer";
+  }
+});

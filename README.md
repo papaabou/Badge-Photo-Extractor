@@ -49,6 +49,33 @@ npm i -g vercel
 vercel --prod
 ```
 
+## Configurer le formulaire de contact (Web3Forms)
+
+Le footer propose un bouton **« Me contacter »** qui ouvre un formulaire (Nom / Email / Message) envoyé via [Web3Forms](https://web3forms.com), sans backend.
+
+1. Créer une clé d'accès gratuite sur [web3forms.com](https://web3forms.com) avec l'adresse email qui doit recevoir les messages.
+2. Dans [`script.js`](script.js), remplacer la valeur de la constante en haut du fichier :
+   ```js
+   const WEB3FORMS_ACCESS_KEY = "METTRE_LA_CLE_ICI";
+   ```
+   par la clé obtenue.
+
+Tant que cette clé n'est pas renseignée, le formulaire affiche un message d'erreur explicite au lieu d'envoyer la requête.
+
+Le champ caché `botcheck` est l'anti-spam natif de Web3Forms (honeypot) : il ne doit pas être modifié.
+
+## Lien LinkedIn
+
+Dans [`index.html`](index.html), remplacer l'URL placeholder du lien LinkedIn du footer :
+
+```html
+<a id="linkedinLink" href="https://www.linkedin.com/in/PLACEHOLDER" ...>
+```
+
+par l'URL du profil réel.
+
 ## Confidentialité
 
-Toutes les opérations (lecture du PDF, extraction, recadrage, génération du ZIP) s'exécutent dans le navigateur de l'utilisateur. Aucune photo, aucun fichier PDF n'est envoyé à un serveur — y compris après déploiement sur Vercel, qui ne fait que servir des fichiers statiques.
+Toutes les opérations liées aux PDF (lecture, extraction, recadrage, génération du ZIP) s'exécutent dans le navigateur de l'utilisateur. Aucune photo, aucun fichier PDF n'est envoyé à un serveur — y compris après déploiement sur Vercel, qui ne fait que servir des fichiers statiques.
+
+Seule exception : le formulaire de contact envoie le nom, l'email et le message saisis à l'API de [Web3Forms](https://web3forms.com) (service tiers) au moment de l'envoi — aucune autre donnée du site n'y transite.
