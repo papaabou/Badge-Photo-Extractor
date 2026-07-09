@@ -155,7 +155,7 @@ async function extractImagesFromPage(page, pageNum) {
   const textLines = await getPageTextLines(page);
 
   const seenNames = new Set();
-  let indexInPage = 0;
+  const pageImages = []; // { canvas, bbox, isSmall }
 
   // Simulation de la pile graphique (save/restore/cm) pour connaître
   // la position réelle (CTM) de chaque image sur la page
@@ -193,23 +193,30 @@ async function extractImagesFromPage(page, pageNum) {
     const canvas = imageObjectToCanvas(imgObj);
     if (!canvas || canvas.width === 0 || canvas.height === 0) continue;
 
-    indexInPage++;
-    const isSmall = canvas.width < MIN_DIMENSION || canvas.height < MIN_DIMENSION;
-    const bbox = imageBoundingBox(ctm);
-    const detectedName = findNameNearBbox(bbox, textLines);
-
-    photos.push({
-      id: ++photoIdCounter,
+    pageImages.push({
       canvas,
-      width: canvas.width,
-      height: canvas.height,
-      pageNum,
-      indexInPage,
-      selected: true,
-      small: isSmall,
-      name: detectedName || "",
+      bbox: imageBoundingBox(ctm),
+      isSmall: canvas.width < MIN_DIMENSION || canvas.height < MIN_DIMENSION,
     });
   }
+
+  // Chaque ligne de texte n'est utilisée que pour une seule photo au maximum,
+  // pour éviter qu'un même nom se retrouve dupliqué sur plusieurs photos voisines.
+  const assignedNames = assignNamesToImages(pageImages, textLines);
+
+  pageImages.forEach((img, idx) => {
+    photos.push({
+      id: ++photoIdCounter,
+      canvas: img.canvas,
+      width: img.canvas.width,
+      height: img.canvas.height,
+      pageNum,
+      indexInPage: idx + 1,
+      selected: true,
+      small: img.isSmall,
+      name: assignedNames[idx] || "",
+    });
+  });
 }
 
 /* Récupère et regroupe le texte de la page en lignes, pour la détection des noms */
@@ -261,7 +268,10 @@ function imageBoundingBox(ctm) {
    pour éviter de fusionner deux étiquettes voisines situées à la même hauteur (ex: deux badges côte à côte). */
 function groupTextIntoLines(items) {
   const Y_TOLERANCE = 2.5;
-  const X_GAP_TOLERANCE = 25;
+  // Volontairement serré : un espace entre deux mots d'un même nom est petit,
+  // alors que l'écart entre deux étiquettes voisines (deux personnes différentes
+  // sur la même ligne) est presque toujours plus grand.
+  const X_GAP_TOLERANCE = 10;
 
   const fragments = items
     .filter((item) => item.str && item.str.trim())
@@ -304,40 +314,60 @@ function groupTextIntoLines(items) {
   return lines.filter((l) => l.text.length > 0);
 }
 
-/* Cherche la ligne de texte la plus proche d'une image (sous l'image, sinon au-dessus) */
-function findNameNearBbox(bbox, lines) {
-  const bboxWidth = bbox.maxX - bbox.minX;
-  const bboxHeight = bbox.maxY - bbox.minY;
-  const maxGap = Math.max(40, bboxHeight * 0.6);
-  const overlapMargin = Math.max(20, bboxWidth * 0.4);
+/* Associe chaque image à la ligne de texte la plus proche (nom), de façon EXCLUSIVE :
+   une même ligne ne peut servir de nom qu'à une seule photo, pour éviter les doublons
+   quand plusieurs photos sont alignées côte à côte près d'une même étiquette. */
+function assignNamesToImages(images, lines) {
+  const candidates = [];
 
-  const overlapsHorizontally = (line) =>
-    line.maxX >= bbox.minX - overlapMargin && line.minX <= bbox.maxX + overlapMargin;
+  images.forEach((img, imgIdx) => {
+    const bbox = img.bbox;
+    const bboxWidth = bbox.maxX - bbox.minX;
+    const bboxHeight = bbox.maxY - bbox.minY;
+    const maxGap = Math.max(30, bboxHeight * 0.5);
+    // Marge horizontale volontairement serrée : le nom doit être centré
+    // sous (ou au-dessus) de la photo, pas sous une photo voisine.
+    const overlapMargin = Math.max(10, bboxWidth * 0.15);
 
-  // 1. Lignes situées sous l'image (cas le plus fréquent pour un badge)
-  let best = null;
-  let bestGap = Infinity;
-  for (const line of lines) {
-    if (!overlapsHorizontally(line)) continue;
-    const gap = bbox.minY - line.y;
-    if (gap >= -2 && gap <= maxGap && gap < bestGap) {
-      best = line;
-      bestGap = gap;
-    }
+    lines.forEach((line, lineIdx) => {
+      const lineCenterX = (line.minX + line.maxX) / 2;
+      const withinX = lineCenterX >= bbox.minX - overlapMargin && lineCenterX <= bbox.maxX + overlapMargin;
+      if (!withinX) return;
+
+      let gap;
+      let direction;
+      if (line.y <= bbox.minY + 2) {
+        gap = bbox.minY - line.y;
+        direction = "below";
+      } else if (line.y >= bbox.maxY - 2) {
+        gap = line.y - bbox.maxY;
+        direction = "above";
+      } else {
+        return; // la ligne chevauche verticalement l'image elle-même
+      }
+
+      if (gap < -2 || gap > maxGap) return;
+
+      // Priorité forte aux lignes situées sous l'image (cas le plus fréquent pour un badge)
+      const score = gap + (direction === "above" ? 1000 : 0);
+      candidates.push({ imgIdx, lineIdx, score });
+    });
+  });
+
+  candidates.sort((a, b) => a.score - b.score);
+
+  const usedImages = new Set();
+  const usedLines = new Set();
+  const result = new Array(images.length).fill("");
+
+  for (const c of candidates) {
+    if (usedImages.has(c.imgIdx) || usedLines.has(c.lineIdx)) continue;
+    result[c.imgIdx] = lines[c.lineIdx].text;
+    usedImages.add(c.imgIdx);
+    usedLines.add(c.lineIdx);
   }
-  if (best) return best.text;
 
-  // 2. Sinon, lignes situées au-dessus de l'image
-  bestGap = Infinity;
-  for (const line of lines) {
-    if (!overlapsHorizontally(line)) continue;
-    const gap = line.y - bbox.maxY;
-    if (gap >= -2 && gap <= maxGap && gap < bestGap) {
-      best = line;
-      bestGap = gap;
-    }
-  }
-  return best ? best.text : null;
+  return result;
 }
 
 /* Récupère un objet image depuis le cache de la page (ou le cache commun du document) */
