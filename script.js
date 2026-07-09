@@ -279,6 +279,7 @@ function groupTextIntoLines(items) {
       x: item.transform[4],
       y: item.transform[5],
       width: item.width || 0,
+      height: item.height || 10,
       str: item.str,
     }))
     .sort((a, b) => (Math.abs(a.y - b.y) < Y_TOLERANCE ? a.x - b.x : b.y - a.y));
@@ -293,11 +294,12 @@ function groupTextIntoLines(items) {
         frag.x + frag.width >= l.minX - X_GAP_TOLERANCE
     );
     if (!line) {
-      line = { y: frag.y, minX: frag.x, maxX: frag.x + frag.width, parts: [] };
+      line = { y: frag.y, minX: frag.x, maxX: frag.x + frag.width, height: frag.height, parts: [] };
       lines.push(line);
     } else {
       line.minX = Math.min(line.minX, frag.x);
       line.maxX = Math.max(line.maxX, frag.x + frag.width);
+      line.height = Math.max(line.height, frag.height);
     }
     line.parts.push({ x: frag.x, str: frag.str });
   }
@@ -316,18 +318,19 @@ function groupTextIntoLines(items) {
 
 /* Associe chaque image à la ligne de texte la plus proche (nom), de façon EXCLUSIVE :
    une même ligne ne peut servir de nom qu'à une seule photo, pour éviter les doublons
-   quand plusieurs photos sont alignées côte à côte près d'une même étiquette. */
+   quand plusieurs photos sont alignées côte à côte près d'une même étiquette.
+   Étend ensuite le nom trouvé avec les lignes empilées juste à côté (ex: nom de famille
+   sur une ligne, prénom sur la ligne suivante), toujours sans réutiliser une ligne déjà prise. */
 function assignNamesToImages(images, lines) {
   const candidates = [];
 
+  const overlapMarginFor = (bbox) => Math.max(10, (bbox.maxX - bbox.minX) * 0.15);
+
   images.forEach((img, imgIdx) => {
     const bbox = img.bbox;
-    const bboxWidth = bbox.maxX - bbox.minX;
     const bboxHeight = bbox.maxY - bbox.minY;
     const maxGap = Math.max(30, bboxHeight * 0.5);
-    // Marge horizontale volontairement serrée : le nom doit être centré
-    // sous (ou au-dessus) de la photo, pas sous une photo voisine.
-    const overlapMargin = Math.max(10, bboxWidth * 0.15);
+    const overlapMargin = overlapMarginFor(bbox);
 
     lines.forEach((line, lineIdx) => {
       const lineCenterX = (line.minX + line.maxX) / 2;
@@ -350,22 +353,72 @@ function assignNamesToImages(images, lines) {
 
       // Priorité forte aux lignes situées sous l'image (cas le plus fréquent pour un badge)
       const score = gap + (direction === "above" ? 1000 : 0);
-      candidates.push({ imgIdx, lineIdx, score });
+      candidates.push({ imgIdx, lineIdx, score, direction });
     });
   });
 
   candidates.sort((a, b) => a.score - b.score);
 
-  const usedImages = new Set();
   const usedLines = new Set();
-  const result = new Array(images.length).fill("");
+  const primaryLineIdx = new Array(images.length).fill(-1);
+  const primaryDirection = new Array(images.length).fill(null);
 
   for (const c of candidates) {
-    if (usedImages.has(c.imgIdx) || usedLines.has(c.lineIdx)) continue;
-    result[c.imgIdx] = lines[c.lineIdx].text;
-    usedImages.add(c.imgIdx);
+    if (primaryLineIdx[c.imgIdx] !== -1 || usedLines.has(c.lineIdx)) continue;
+    primaryLineIdx[c.imgIdx] = c.lineIdx;
+    primaryDirection[c.imgIdx] = c.direction;
     usedLines.add(c.lineIdx);
   }
+
+  // Deuxième passe : recoller les lignes empilées juste après la ligne principale
+  // (même bloc nom réparti sur plusieurs lignes), tant qu'aucune autre photo ne l'a prise.
+  const result = new Array(images.length).fill("");
+
+  images.forEach((img, imgIdx) => {
+    const firstIdx = primaryLineIdx[imgIdx];
+    if (firstIdx === -1) return;
+
+    const bbox = img.bbox;
+    const overlapMargin = overlapMarginFor(bbox);
+    const direction = primaryDirection[imgIdx];
+    const parts = [lines[firstIdx].text];
+    let currentLine = lines[firstIdx];
+    let guard = 0;
+
+    while (guard < 3) {
+      guard++;
+      const extensionGapMax = Math.max(14, (currentLine.height || 10) * 1.8);
+      let next = null;
+      let nextIdx = -1;
+      let bestGap = Infinity;
+
+      lines.forEach((line, lineIdx) => {
+        if (usedLines.has(lineIdx)) return;
+        const lineCenterX = (line.minX + line.maxX) / 2;
+        if (lineCenterX < bbox.minX - overlapMargin || lineCenterX > bbox.maxX + overlapMargin) return;
+
+        // On continue de chercher dans la même direction que la ligne principale
+        // (plus loin sous l'image, ou plus loin au-dessus)
+        const gap = direction === "below" ? currentLine.y - line.y : line.y - currentLine.y;
+        if (gap > 0 && gap <= extensionGapMax && gap < bestGap) {
+          next = line;
+          nextIdx = lineIdx;
+          bestGap = gap;
+        }
+      });
+
+      if (!next) break;
+      usedLines.add(nextIdx);
+      if (direction === "below") {
+        parts.push(next.text);
+      } else {
+        parts.unshift(next.text);
+      }
+      currentLine = next;
+    }
+
+    result[imgIdx] = parts.join(" ").replace(/\s+/g, " ").trim();
+  });
 
   return result;
 }
