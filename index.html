@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Badge Photo Extractor — Extraction de photos de badges depuis un PDF</title>
+  <meta name="description" content="Extrayez les photos d'identité contenues dans un PDF pour préparer vos badges. 100% local, aucune donnée envoyée sur un serveur." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪪</text></svg>" />
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- En-tête -->
+    <header class="header">
+      <div class="header-inner">
+        <div class="brand">
+          <span class="brand-icon">🪪</span>
+          <div>
+            <h1>Badge Photo Extractor</h1>
+            <p class="tagline">Extrayez les photos d'un PDF pour vos badges — 100% dans votre navigateur</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+
+      <!-- Zone d'upload -->
+      <section class="upload-section" id="uploadSection">
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Déposer ou choisir un fichier PDF">
+          <div class="dropzone-content">
+            <span class="dropzone-icon">📄</span>
+            <p class="dropzone-title">Déposez votre PDF ici</p>
+            <p class="dropzone-sub">ou</p>
+            <button type="button" class="btn btn-primary" id="chooseFileBtn">Choisir un PDF</button>
+            <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden />
+          </div>
+        </div>
+        <p class="file-info" id="fileInfo"></p>
+        <p class="error-message" id="errorMessage" role="alert"></p>
+      </section>
+
+      <!-- Options d'extraction -->
+      <section class="options-panel" id="optionsPanel" hidden>
+        <div class="option-group">
+          <label for="badgeFormat">Format badge (recadrage)</label>
+          <select id="badgeFormat">
+            <option value="original">Original (pas de recadrage)</option>
+            <option value="id35x45">Photo d'identité 35×45 mm</option>
+            <option value="square">Carré 1:1</option>
+          </select>
+        </div>
+
+        <div class="option-group option-checkbox">
+          <label>
+            <input type="checkbox" id="showSmallImages" />
+            Afficher aussi les petites images (icônes, logos)
+          </label>
+        </div>
+      </section>
+
+      <!-- Barre de progression -->
+      <section class="progress-section" id="progressSection" hidden>
+        <p class="progress-label" id="progressLabel">Extraction en cours…</p>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+      </section>
+
+      <!-- Barre d'outils de la galerie -->
+      <section class="gallery-toolbar" id="galleryToolbar" hidden>
+        <div class="gallery-count" id="galleryCount">0 photo extraite</div>
+        <div class="gallery-actions">
+          <button type="button" class="btn btn-ghost" id="selectAllBtn">Tout sélectionner</button>
+          <button type="button" class="btn btn-ghost" id="deselectAllBtn">Tout désélectionner</button>
+          <button type="button" class="btn btn-secondary" id="downloadSelectionBtn">Télécharger la sélection (ZIP)</button>
+          <button type="button" class="btn btn-primary" id="downloadAllBtn">Tout télécharger (ZIP)</button>
+        </div>
+      </section>
+
+      <!-- État vide -->
+      <section class="empty-state" id="emptyState">
+        <span class="empty-icon">🖼️</span>
+        <p>Aucune photo pour le moment.<br>Importez un PDF pour commencer l'extraction.</p>
+      </section>
+
+      <!-- Galerie -->
+      <section class="gallery" id="gallery" hidden></section>
+
+    </main>
+
+    <footer class="footer">
+      <p>🔒 Traitement 100% local — vos photos ne quittent pas votre appareil</p>
+    </footer>
+
+  </div>
+
+  <!-- Modèle (template) de carte photo -->
+  <template id="photoCardTemplate">
+    <article class="photo-card">
+      <label class="photo-card-select">
+        <input type="checkbox" class="photo-checkbox" checked />
+      </label>
+      <div class="photo-preview">
+        <img class="photo-img" alt="Photo extraite" />
+      </div>
+      <div class="photo-meta">
+        <span class="photo-dims"></span>
+        <span class="photo-page"></span>
+      </div>
+      <button type="button" class="btn btn-download">Télécharger</button>
+    </article>
+  </template>
+
+  <!-- Librairies externes (CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <script src="script.js"></script>
+</body>
+</html>
