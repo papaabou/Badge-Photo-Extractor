@@ -431,6 +431,31 @@ body {
   font-size: 0.82rem;
 }
 
+.footer p + p {
+  margin-top: 8px;
+}
+
+.footer-credit {
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.footer-credit strong {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.footer-credit a {
+  color: var(--text-faint);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.footer-credit a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 640px) {
