@@ -9,8 +9,9 @@ Application web **100% côté client** qui extrait les photos contenues dans un 
 3. **Extraction** — pour chaque page, on inspecte la liste d'opérateurs (`page.getOperatorList()`) à la recherche des instructions `paintImageXObject` / `paintImageXObjectRepeat`. Chaque image référencée est récupérée via `page.objs` (ou `page.commonObjs`), puis convertie en `<canvas>` (gestion des formats RGBA, RGB et niveaux de gris 1 bit, ainsi que des `ImageBitmap` déjà décodés par PDF.js).
 4. **Filtrage** — les images de moins de 50×50 px (souvent des logos/icônes) sont masquées par défaut, avec une option pour les afficher.
 5. **Galerie** — chaque photo extraite est affichée avec ses dimensions, sa page d'origine, une case de sélection et un bouton de téléchargement individuel.
-6. **Recadrage badge** — un sélecteur permet de recadrer (centré, sur canvas) chaque photo au format 35×45 mm (photo d'identité), carré 1:1, ou de garder l'original. Le recadrage est appliqué au moment du téléchargement.
-7. **Export** — téléchargement individuel en PNG, ou export groupé en ZIP (toutes les photos visibles, ou seulement la sélection) via [JSZip](https://stuk.github.io/jszip/).
+6. **Détection du nom** — la position réelle de chaque image sur la page (calculée à partir de la matrice de transformation du PDF) est comparée au texte environnant (`page.getTextContent()`) pour retrouver le nom le plus proche (généralement sous la photo, sinon au-dessus). Le nom détecté est affiché dans un champ éditable — l'utilisateur peut le corriger si la détection se trompe — et sert de base au nom du fichier téléchargé.
+7. **Recadrage badge** — un sélecteur permet de recadrer (centré, sur canvas) chaque photo au format 35×45 mm (photo d'identité), carré 1:1, ou de garder l'original. Le recadrage est appliqué au moment du téléchargement.
+8. **Export** — téléchargement individuel en PNG, ou export groupé en ZIP (toutes les photos visibles, ou seulement la sélection) via [JSZip](https://stuk.github.io/jszip/).
 
 Aucune bibliothèque n'est installée localement : PDF.js et JSZip sont chargés depuis un CDN (cdnjs) directement dans `index.html`.
 

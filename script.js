@@ -46,7 +46,7 @@ const photoCardTemplate = document.getElementById("photoCardTemplate");
 
 /* ---------- État de l'application ---------- */
 
-let photos = []; // { id, canvas, width, height, pageNum, indexInPage, selected, small }
+let photos = []; // { id, canvas, width, height, pageNum, indexInPage, selected, small, name }
 let photoIdCounter = 0;
 
 /* ===========================================================
@@ -148,20 +148,42 @@ async function extractPhotosFromPdf(file) {
   renderGallery();
 }
 
-/* Extrait les images d'une page via les instructions bas niveau de PDF.js */
+/* Extrait les images d'une page via les instructions bas niveau de PDF.js,
+   et associe à chaque image le nom de personne trouvé à proximité dans le texte de la page. */
 async function extractImagesFromPage(page, pageNum) {
   const operatorList = await page.getOperatorList();
+  const textLines = await getPageTextLines(page);
+
   const seenNames = new Set();
   let indexInPage = 0;
 
+  // Simulation de la pile graphique (save/restore/cm) pour connaître
+  // la position réelle (CTM) de chaque image sur la page
+  let ctm = [1, 0, 0, 1, 0, 0];
+  const ctmStack = [];
+
   for (let i = 0; i < operatorList.fnArray.length; i++) {
     const fn = operatorList.fnArray[i];
+    const args = operatorList.argsArray[i];
+
+    if (fn === pdfjsLib.OPS.save) {
+      ctmStack.push(ctm);
+      continue;
+    }
+    if (fn === pdfjsLib.OPS.restore) {
+      ctm = ctmStack.pop() || ctm;
+      continue;
+    }
+    if (fn === pdfjsLib.OPS.transform) {
+      ctm = multiplyMatrix(args, ctm);
+      continue;
+    }
+
     const isImageOp =
       fn === pdfjsLib.OPS.paintImageXObject || fn === pdfjsLib.OPS.paintImageXObjectRepeat;
-
     if (!isImageOp) continue;
 
-    const imgName = operatorList.argsArray[i][0];
+    const imgName = args[0];
     if (!imgName || seenNames.has(imgName)) continue;
     seenNames.add(imgName);
 
@@ -173,6 +195,8 @@ async function extractImagesFromPage(page, pageNum) {
 
     indexInPage++;
     const isSmall = canvas.width < MIN_DIMENSION || canvas.height < MIN_DIMENSION;
+    const bbox = imageBoundingBox(ctm);
+    const detectedName = findNameNearBbox(bbox, textLines);
 
     photos.push({
       id: ++photoIdCounter,
@@ -183,8 +207,137 @@ async function extractImagesFromPage(page, pageNum) {
       indexInPage,
       selected: true,
       small: isSmall,
+      name: detectedName || "",
     });
   }
+}
+
+/* Récupère et regroupe le texte de la page en lignes, pour la détection des noms */
+async function getPageTextLines(page) {
+  try {
+    const textContent = await page.getTextContent();
+    return groupTextIntoLines(textContent.items);
+  } catch (err) {
+    return [];
+  }
+}
+
+/* Multiplie une matrice de transformation PDF [a,b,c,d,e,f] par la CTM courante */
+function multiplyMatrix(m, ctm) {
+  return [
+    m[0] * ctm[0] + m[1] * ctm[2],
+    m[0] * ctm[1] + m[1] * ctm[3],
+    m[2] * ctm[0] + m[3] * ctm[2],
+    m[2] * ctm[1] + m[3] * ctm[3],
+    m[4] * ctm[0] + m[5] * ctm[2] + ctm[4],
+    m[4] * ctm[1] + m[5] * ctm[3] + ctm[5],
+  ];
+}
+
+/* Transforme le point (x, y) par la matrice m */
+function applyMatrix(m, x, y) {
+  return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+}
+
+/* Une image est peinte dans le carré unité (0,0)-(1,1) transformé par la CTM courante */
+function imageBoundingBox(ctm) {
+  const corners = [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1],
+  ].map(([x, y]) => applyMatrix(ctm, x, y));
+  const xs = corners.map((c) => c[0]);
+  const ys = corners.map((c) => c[1]);
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minY: Math.min(...ys),
+    maxY: Math.max(...ys),
+  };
+}
+
+/* Regroupe les fragments de texte de la page en blocs (même ligne ET proches horizontalement),
+   pour éviter de fusionner deux étiquettes voisines situées à la même hauteur (ex: deux badges côte à côte). */
+function groupTextIntoLines(items) {
+  const Y_TOLERANCE = 2.5;
+  const X_GAP_TOLERANCE = 25;
+
+  const fragments = items
+    .filter((item) => item.str && item.str.trim())
+    .map((item) => ({
+      x: item.transform[4],
+      y: item.transform[5],
+      width: item.width || 0,
+      str: item.str,
+    }))
+    .sort((a, b) => (Math.abs(a.y - b.y) < Y_TOLERANCE ? a.x - b.x : b.y - a.y));
+
+  const lines = [];
+
+  for (const frag of fragments) {
+    let line = lines.find(
+      (l) =>
+        Math.abs(l.y - frag.y) < Y_TOLERANCE &&
+        frag.x <= l.maxX + X_GAP_TOLERANCE &&
+        frag.x + frag.width >= l.minX - X_GAP_TOLERANCE
+    );
+    if (!line) {
+      line = { y: frag.y, minX: frag.x, maxX: frag.x + frag.width, parts: [] };
+      lines.push(line);
+    } else {
+      line.minX = Math.min(line.minX, frag.x);
+      line.maxX = Math.max(line.maxX, frag.x + frag.width);
+    }
+    line.parts.push({ x: frag.x, str: frag.str });
+  }
+
+  for (const line of lines) {
+    line.parts.sort((a, b) => a.x - b.x);
+    line.text = line.parts
+      .map((p) => p.str)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  return lines.filter((l) => l.text.length > 0);
+}
+
+/* Cherche la ligne de texte la plus proche d'une image (sous l'image, sinon au-dessus) */
+function findNameNearBbox(bbox, lines) {
+  const bboxWidth = bbox.maxX - bbox.minX;
+  const bboxHeight = bbox.maxY - bbox.minY;
+  const maxGap = Math.max(40, bboxHeight * 0.6);
+  const overlapMargin = Math.max(20, bboxWidth * 0.4);
+
+  const overlapsHorizontally = (line) =>
+    line.maxX >= bbox.minX - overlapMargin && line.minX <= bbox.maxX + overlapMargin;
+
+  // 1. Lignes situées sous l'image (cas le plus fréquent pour un badge)
+  let best = null;
+  let bestGap = Infinity;
+  for (const line of lines) {
+    if (!overlapsHorizontally(line)) continue;
+    const gap = bbox.minY - line.y;
+    if (gap >= -2 && gap <= maxGap && gap < bestGap) {
+      best = line;
+      bestGap = gap;
+    }
+  }
+  if (best) return best.text;
+
+  // 2. Sinon, lignes situées au-dessus de l'image
+  bestGap = Infinity;
+  for (const line of lines) {
+    if (!overlapsHorizontally(line)) continue;
+    const gap = line.y - bbox.maxY;
+    if (gap >= -2 && gap <= maxGap && gap < bestGap) {
+      best = line;
+      bestGap = gap;
+    }
+  }
+  return best ? best.text : null;
 }
 
 /* Récupère un objet image depuis le cache de la page (ou le cache commun du document) */
@@ -336,6 +489,7 @@ function buildPhotoCard(photo) {
   const img = node.querySelector(".photo-img");
   const dims = node.querySelector(".photo-dims");
   const pageLabel = node.querySelector(".photo-page");
+  const nameInput = node.querySelector(".photo-name");
   const downloadBtn = node.querySelector(".btn-download");
 
   img.src = photo.canvas.toDataURL("image/png");
@@ -343,9 +497,15 @@ function buildPhotoCard(photo) {
   dims.textContent = `${photo.width} × ${photo.height} px`;
   pageLabel.textContent = `Page ${photo.pageNum}`;
   checkbox.checked = photo.selected;
+  nameInput.value = photo.name || "";
+  nameInput.placeholder = "Nom non détecté";
 
   checkbox.addEventListener("change", () => {
     photo.selected = checkbox.checked;
+  });
+
+  nameInput.addEventListener("input", () => {
+    photo.name = nameInput.value;
   });
 
   downloadBtn.addEventListener("click", async () => {
@@ -437,7 +597,20 @@ function triggerDownload(blob, filename) {
 }
 
 function photoFileName(photo) {
+  const cleanName = photo.name && photo.name.trim() ? sanitizeForFilename(photo.name.trim()) : "";
+  if (cleanName) {
+    return `${cleanName}_page${photo.pageNum}.png`;
+  }
   return `photo_page${photo.pageNum}_${photo.indexInPage}.png`;
+}
+
+/* Nettoie une chaîne pour en faire un nom de fichier sûr (sans accents ni caractères spéciaux) */
+function sanitizeForFilename(str) {
+  return str
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // supprime les accents (diacritiques combinants)
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 downloadAllBtn.addEventListener("click", () => {

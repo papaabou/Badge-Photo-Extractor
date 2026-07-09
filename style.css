@@ -421,6 +421,26 @@ body {
   color: var(--text-faint);
 }
 
+.photo-name {
+  width: 100%;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.photo-name::placeholder {
+  color: var(--text-faint);
+}
+
+.photo-name:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* ---------- Pied de page ---------- */
 
 .footer {
