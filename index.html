@@ -211,6 +211,35 @@
     </div>
   </div>
 
+  <!-- Modal de recadrage manuel -->
+  <div class="modal-overlay" id="cropAdjustOverlay" hidden>
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="cropAdjustTitle">
+      <div class="modal-header">
+        <h2 id="cropAdjustTitle">Ajuster le recadrage</h2>
+        <button type="button" class="modal-close" id="closeCropAdjustBtn" aria-label="Fermer">✕</button>
+      </div>
+
+      <p class="crop-adjust-hint" id="cropAdjustHint">
+        Glissez la photo pour la repositionner, utilisez le curseur pour zoomer.
+      </p>
+
+      <div class="crop-adjust-canvas-wrap">
+        <canvas id="cropAdjustCanvas" class="crop-adjust-canvas"></canvas>
+      </div>
+
+      <div class="crop-adjust-controls">
+        <label for="cropZoomRange">Zoom</label>
+        <input type="range" id="cropZoomRange" min="1" max="3" step="0.05" value="1" />
+      </div>
+
+      <div class="crop-adjust-actions">
+        <button type="button" class="btn btn-ghost" id="cropResetBtn">Réinitialiser</button>
+        <button type="button" class="btn btn-secondary" id="cropCancelBtn">Annuler</button>
+        <button type="button" class="btn btn-primary" id="cropApplyBtn">Appliquer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modèle (template) de carte photo -->
   <template id="photoCardTemplate">
     <article class="photo-card">
@@ -225,7 +254,10 @@
         <span class="photo-page"></span>
       </div>
       <input type="text" class="photo-name" placeholder="Nom non détecté" aria-label="Nom de la personne" />
-      <button type="button" class="btn btn-download">Télécharger</button>
+      <div class="photo-card-actions">
+        <button type="button" class="btn btn-secondary btn-adjust">🖼️ Ajuster</button>
+        <button type="button" class="btn btn-download">Télécharger</button>
+      </div>
     </article>
   </template>
 

@@ -84,9 +84,18 @@ const badgeGenerateBtn = document.getElementById("badgeGenerateBtn");
 const badgeGeneratorFeedback = document.getElementById("badgeGeneratorFeedback");
 const badgePreviewCanvas = document.getElementById("badgePreviewCanvas");
 
+const closeCropAdjustBtn = document.getElementById("closeCropAdjustBtn");
+const cropAdjustOverlay = document.getElementById("cropAdjustOverlay");
+const cropAdjustHint = document.getElementById("cropAdjustHint");
+const cropAdjustCanvas = document.getElementById("cropAdjustCanvas");
+const cropZoomRange = document.getElementById("cropZoomRange");
+const cropResetBtn = document.getElementById("cropResetBtn");
+const cropCancelBtn = document.getElementById("cropCancelBtn");
+const cropApplyBtn = document.getElementById("cropApplyBtn");
+
 /* ---------- État de l'application ---------- */
 
-let photos = []; // { id, canvas, width, height, pageNum, indexInPage, selected, small, name }
+let photos = []; // { id, canvas, width, height, pageNum, indexInPage, selected, small, name, crop }
 let photoIdCounter = 0;
 let badgeLogoImage = null; // <img> chargée depuis le fichier logo uploadé (ou null)
 
@@ -256,6 +265,7 @@ async function extractImagesFromPage(page, pageNum) {
       selected: true,
       small: img.isSmall,
       name: assignedNames[idx] || "",
+      crop: { x: 0.5, y: 0.5, zoom: 1 }, // centre normalisé (0-1) + zoom du cadre de recadrage
     });
   });
 }
@@ -614,6 +624,7 @@ function buildPhotoCard(photo) {
   const dims = node.querySelector(".photo-dims");
   const pageLabel = node.querySelector(".photo-page");
   const nameInput = node.querySelector(".photo-name");
+  const adjustBtn = node.querySelector(".btn-adjust");
   const downloadBtn = node.querySelector(".btn-download");
 
   img.src = photo.canvas.toDataURL("image/png");
@@ -623,6 +634,7 @@ function buildPhotoCard(photo) {
   checkbox.checked = photo.selected;
   nameInput.value = photo.name || "";
   nameInput.placeholder = "Nom non détecté";
+  adjustBtn.textContent = isCropCustomized(photo.crop) ? "🖼️ Ajuster ✓" : "🖼️ Ajuster";
 
   checkbox.addEventListener("change", () => {
     photo.selected = checkbox.checked;
@@ -632,8 +644,10 @@ function buildPhotoCard(photo) {
     photo.name = nameInput.value;
   });
 
+  adjustBtn.addEventListener("click", () => openCropAdjustModal(photo));
+
   downloadBtn.addEventListener("click", async () => {
-    const croppedCanvas = cropCanvasForFormat(photo.canvas, badgeFormatSelect.value);
+    const croppedCanvas = cropCanvasForFormat(photo.canvas, badgeFormatSelect.value, photo.crop);
     const blob = await canvasToBlob(croppedCanvas);
     triggerDownload(blob, photoFileName(photo));
   });
@@ -667,29 +681,45 @@ deselectAllBtn.addEventListener("click", () => {
    Recadrage "Format badge"
    =========================================================== */
 
-function cropCanvasForFormat(sourceCanvas, formatValue) {
+const DEFAULT_CROP_STATE = { x: 0.5, y: 0.5, zoom: 1 };
+const MAX_CROP_ZOOM = 3;
+
+/* Calcule le rectangle de recadrage dans l'image source pour un ratio et un
+   état de recadrage donnés (centre normalisé x/y + zoom). Partagé entre
+   l'export (cropCanvasForFormat) et l'aperçu interactif du recadrage manuel,
+   pour garantir que ce qui est affiché correspond exactement à ce qui est exporté. */
+function computeCropRect(sourceCanvas, ratio, cropState) {
+  const sw = sourceCanvas.width;
+  const sh = sourceCanvas.height;
+  const state = cropState || DEFAULT_CROP_STATE;
+  const zoom = Math.min(MAX_CROP_ZOOM, Math.max(1, state.zoom || 1));
+
+  let baseW, baseH;
+  if (sw / sh > ratio) {
+    baseH = sh;
+    baseW = sh * ratio;
+  } else {
+    baseW = sw;
+    baseH = sw / ratio;
+  }
+
+  const cropW = baseW / zoom;
+  const cropH = baseH / zoom;
+
+  const centerX = (state.x ?? 0.5) * sw;
+  const centerY = (state.y ?? 0.5) * sh;
+
+  const cropX = Math.min(Math.max(centerX - cropW / 2, 0), sw - cropW);
+  const cropY = Math.min(Math.max(centerY - cropH / 2, 0), sh - cropH);
+
+  return { cropX, cropY, cropW, cropH };
+}
+
+function cropCanvasForFormat(sourceCanvas, formatValue, cropState) {
   const format = BADGE_FORMATS[formatValue];
   if (!format) return sourceCanvas; // "original" : pas de recadrage
 
-  const sw = sourceCanvas.width;
-  const sh = sourceCanvas.height;
-  const srcRatio = sw / sh;
-
-  let cropW, cropH, cropX, cropY;
-
-  if (srcRatio > format.ratio) {
-    // image source trop large : on rogne les côtés
-    cropH = sh;
-    cropW = sh * format.ratio;
-    cropX = (sw - cropW) / 2;
-    cropY = 0;
-  } else {
-    // image source trop haute : on rogne haut/bas
-    cropW = sw;
-    cropH = sw / format.ratio;
-    cropX = 0;
-    cropY = (sh - cropH) / 2;
-  }
+  const { cropX, cropY, cropW, cropH } = computeCropRect(sourceCanvas, format.ratio, cropState);
 
   const out = document.createElement("canvas");
   out.width = format.outW;
@@ -758,7 +788,7 @@ async function downloadPhotosAsZip(photoList, zipFilename) {
   const format = badgeFormatSelect.value;
 
   for (const photo of photoList) {
-    const croppedCanvas = cropCanvasForFormat(photo.canvas, format);
+    const croppedCanvas = cropCanvasForFormat(photo.canvas, format, photo.crop);
     const blob = await canvasToBlob(croppedCanvas);
     zip.file(photoFileName(photo), blob);
   }
@@ -1110,9 +1140,9 @@ function renderPortraitBadge(ctx, w, h, margin, photo, options) {
   }
 }
 
-/* Recadre la photo en carré (réutilise le recadrage centré existant) et la dessine dans une zone */
+/* Recadre la photo en carré (réutilise le recadrage centré/manuel existant) et la dessine dans une zone */
 function drawPhotoInBox(ctx, photo, x, y, w, h) {
-  const cropped = cropCanvasForFormat(photo.canvas, "square");
+  const cropped = cropCanvasForFormat(photo.canvas, "square", photo.crop);
   ctx.drawImage(cropped, x, y, w, h);
   ctx.strokeStyle = "#cccccc";
   ctx.lineWidth = 1;
@@ -1336,3 +1366,177 @@ badgeGeneratorForm?.addEventListener("submit", async (e) => {
     badgeGenerateBtn.textContent = "Générer le PDF";
   }
 });
+
+/* ===========================================================
+   Recadrage manuel (pan + zoom) par photo
+   =========================================================== */
+
+const CROP_ADJUST_MAX_DISPLAY = 480;
+
+let cropAdjustPhoto = null;
+let cropAdjustState = { ...DEFAULT_CROP_STATE };
+let cropAdjustDisplayScale = 1;
+let cropDragging = false;
+let cropDragStartClientX = 0;
+let cropDragStartClientY = 0;
+let cropDragStartStateX = 0.5;
+let cropDragStartStateY = 0.5;
+
+/* Un recadrage est "personnalisé" s'il diffère du centrage par défaut */
+function isCropCustomized(crop) {
+  if (!crop) return false;
+  const eps = 0.001;
+  return Math.abs(crop.x - 0.5) > eps || Math.abs(crop.y - 0.5) > eps || Math.abs(crop.zoom - 1) > eps;
+}
+
+/* Ratio utilisé comme repère visuel dans l'éditeur de recadrage (celui du format badge actuel) */
+function getCropPreviewRatio() {
+  const format = BADGE_FORMATS[badgeFormatSelect.value];
+  return format ? format.ratio : 1;
+}
+
+function openCropAdjustModal(photo) {
+  cropAdjustPhoto = photo;
+  cropAdjustState = { ...(photo.crop || DEFAULT_CROP_STATE) };
+  cropZoomRange.value = cropAdjustState.zoom;
+
+  const format = BADGE_FORMATS[badgeFormatSelect.value];
+  cropAdjustHint.textContent = format
+    ? "Glissez la photo pour la repositionner, utilisez le curseur pour zoomer."
+    : "Le format actuel est « Original » (aucun recadrage) : ce repère carré est indicatif tant qu'aucun format badge n'est choisi.";
+
+  renderCropAdjustCanvas();
+  cropAdjustOverlay.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeCropAdjustModal() {
+  cropAdjustOverlay.hidden = true;
+  document.body.style.overflow = "";
+  cropAdjustPhoto = null;
+}
+
+closeCropAdjustBtn?.addEventListener("click", closeCropAdjustModal);
+cropCancelBtn?.addEventListener("click", closeCropAdjustModal);
+
+cropAdjustOverlay?.addEventListener("click", (e) => {
+  if (e.target === cropAdjustOverlay) closeCropAdjustModal();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && cropAdjustOverlay && !cropAdjustOverlay.hidden) {
+    closeCropAdjustModal();
+  }
+});
+
+/* Dessine la photo + un cadre assombrissant tout ce qui sera coupé (WYSIWYG avec l'export) */
+function renderCropAdjustCanvas() {
+  if (!cropAdjustPhoto) return;
+
+  const sourceCanvas = cropAdjustPhoto.canvas;
+  const sw = sourceCanvas.width;
+  const sh = sourceCanvas.height;
+
+  const scale = Math.min(CROP_ADJUST_MAX_DISPLAY / sw, CROP_ADJUST_MAX_DISPLAY / sh, 1) || 1;
+  const displayW = Math.max(1, Math.round(sw * scale));
+  const displayH = Math.max(1, Math.round(sh * scale));
+
+  cropAdjustCanvas.width = displayW;
+  cropAdjustCanvas.height = displayH;
+  cropAdjustDisplayScale = scale;
+
+  const ctx = cropAdjustCanvas.getContext("2d");
+  ctx.clearRect(0, 0, displayW, displayH);
+  ctx.drawImage(sourceCanvas, 0, 0, displayW, displayH);
+
+  const ratio = getCropPreviewRatio();
+  const { cropX, cropY, cropW, cropH } = computeCropRect(sourceCanvas, ratio, cropAdjustState);
+
+  const rx = cropX * scale;
+  const ry = cropY * scale;
+  const rw = cropW * scale;
+  const rh = cropH * scale;
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+  ctx.fillRect(0, 0, displayW, ry);
+  ctx.fillRect(0, ry + rh, displayW, displayH - ry - rh);
+  ctx.fillRect(0, ry, rx, rh);
+  ctx.fillRect(rx + rw, ry, displayW - rx - rw, rh);
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(rx, ry, rw, rh);
+}
+
+cropZoomRange?.addEventListener("input", () => {
+  cropAdjustState.zoom = parseFloat(cropZoomRange.value) || 1;
+  renderCropAdjustCanvas();
+});
+
+cropResetBtn?.addEventListener("click", () => {
+  cropAdjustState = { ...DEFAULT_CROP_STATE };
+  cropZoomRange.value = 1;
+  renderCropAdjustCanvas();
+});
+
+cropApplyBtn?.addEventListener("click", () => {
+  if (!cropAdjustPhoto) return;
+  cropAdjustPhoto.crop = { ...cropAdjustState };
+
+  const adjustBtnEl = gallery.querySelector(
+    `.photo-card[data-photo-id="${cropAdjustPhoto.id}"] .btn-adjust`
+  );
+  if (adjustBtnEl) {
+    adjustBtnEl.textContent = isCropCustomized(cropAdjustPhoto.crop) ? "🖼️ Ajuster ✓" : "🖼️ Ajuster";
+  }
+
+  closeCropAdjustModal();
+});
+
+/* Glisser-déposer (souris + tactile) pour repositionner le cadre de recadrage */
+function getCropEventPoint(e) {
+  if (e.touches && e.touches.length > 0) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  return { x: e.clientX, y: e.clientY };
+}
+
+function startCropDrag(e) {
+  if (!cropAdjustPhoto) return;
+  cropDragging = true;
+  const point = getCropEventPoint(e);
+  cropDragStartClientX = point.x;
+  cropDragStartClientY = point.y;
+  cropDragStartStateX = cropAdjustState.x;
+  cropDragStartStateY = cropAdjustState.y;
+  e.preventDefault();
+}
+
+function moveCropDrag(e) {
+  if (!cropDragging || !cropAdjustPhoto) return;
+  const point = getCropEventPoint(e);
+  const dxDisplay = point.x - cropDragStartClientX;
+  const dyDisplay = point.y - cropDragStartClientY;
+
+  const sw = cropAdjustPhoto.canvas.width;
+  const sh = cropAdjustPhoto.canvas.height;
+  const dxNorm = dxDisplay / cropAdjustDisplayScale / sw;
+  const dyNorm = dyDisplay / cropAdjustDisplayScale / sh;
+
+  cropAdjustState.x = Math.min(1, Math.max(0, cropDragStartStateX + dxNorm));
+  cropAdjustState.y = Math.min(1, Math.max(0, cropDragStartStateY + dyNorm));
+  renderCropAdjustCanvas();
+  e.preventDefault();
+}
+
+function endCropDrag() {
+  cropDragging = false;
+}
+
+cropAdjustCanvas?.addEventListener("mousedown", startCropDrag);
+window.addEventListener("mousemove", moveCropDrag);
+window.addEventListener("mouseup", endCropDrag);
+
+cropAdjustCanvas?.addEventListener("touchstart", startCropDrag, { passive: false });
+window.addEventListener("touchmove", moveCropDrag, { passive: false });
+window.addEventListener("touchend", endCropDrag);

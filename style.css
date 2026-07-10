@@ -243,6 +243,16 @@ body {
   font-size: 0.85rem;
 }
 
+.photo-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.photo-card-actions .btn {
+  flex: 1 1 0;
+  width: auto;
+}
+
 .btn-download:hover {
   border-color: var(--accent);
   color: var(--accent);
@@ -717,6 +727,58 @@ body {
   border-radius: 6px;
   box-shadow: var(--shadow);
   background: #fff;
+}
+
+/* ---------- Recadrage manuel ---------- */
+
+.crop-adjust-hint {
+  margin: -6px 0 14px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.crop-adjust-canvas-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.crop-adjust-canvas {
+  max-width: 100%;
+  border-radius: 6px;
+  background: #111;
+  cursor: grab;
+  touch-action: none;
+}
+
+.crop-adjust-canvas:active {
+  cursor: grabbing;
+}
+
+.crop-adjust-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.crop-adjust-controls label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.crop-adjust-controls input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.crop-adjust-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* ---------- Responsive ---------- */
