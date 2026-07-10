@@ -77,6 +77,7 @@
           <button type="button" class="btn btn-ghost" id="deselectAllBtn">Tout désélectionner</button>
           <button type="button" class="btn btn-secondary" id="downloadSelectionBtn">Télécharger la sélection (ZIP)</button>
           <button type="button" class="btn btn-primary" id="downloadAllBtn">Tout télécharger (ZIP)</button>
+          <button type="button" class="btn btn-accent" id="openBadgeGeneratorBtn">🪪 Générer les badges (PDF)</button>
         </div>
       </section>
 
@@ -156,6 +157,60 @@
     </div>
   </div>
 
+  <!-- Modal du générateur de badges imprimables -->
+  <div class="modal-overlay" id="badgeGeneratorOverlay" hidden>
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="badgeGeneratorTitle">
+      <div class="modal-header">
+        <h2 id="badgeGeneratorTitle">🪪 Générer les badges (PDF)</h2>
+        <button type="button" class="modal-close" id="closeBadgeGeneratorBtn" aria-label="Fermer">✕</button>
+      </div>
+
+      <p class="badge-generator-count" id="badgeGeneratorCount">0 badge sera généré à partir de la sélection actuelle</p>
+
+      <div class="badge-generator-body">
+        <form id="badgeGeneratorForm" class="contact-form">
+          <div class="form-group">
+            <label for="badgeCardFormat">Format de badge</label>
+            <select id="badgeCardFormat">
+              <option value="cr80">Carte CR80 (86 × 54 mm, format carte de crédit)</option>
+              <option value="conference">Badge conférence (90 × 120 mm)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="badgeSubtitle">Sous-titre (optionnel, appliqué à tous les badges)</label>
+            <input type="text" id="badgeSubtitle" placeholder="Ex : Service Sécurité, Visiteur, Staff…" />
+          </div>
+
+          <div class="form-group">
+            <label for="badgeLogoInput">Logo (optionnel, coin du badge)</label>
+            <div class="logo-upload">
+              <input type="file" id="badgeLogoInput" accept="image/*" hidden />
+              <button type="button" class="btn btn-secondary" id="badgeLogoBtn">Choisir un logo</button>
+              <img id="badgeLogoPreview" class="logo-preview" alt="Aperçu du logo" hidden />
+              <button type="button" class="icon-btn" id="badgeLogoRemoveBtn" aria-label="Retirer le logo" title="Retirer le logo" hidden>✕</button>
+            </div>
+          </div>
+
+          <div class="form-group option-checkbox">
+            <label>
+              <input type="checkbox" id="badgeIncludeQr" />
+              Ajouter un QR code (encode le nom de la personne)
+            </label>
+          </div>
+
+          <button type="submit" class="btn btn-primary" id="badgeGenerateBtn">Générer le PDF</button>
+          <p class="contact-feedback" id="badgeGeneratorFeedback" role="status"></p>
+        </form>
+
+        <div class="badge-preview-wrap">
+          <p class="badge-preview-label">Aperçu</p>
+          <canvas id="badgePreviewCanvas" class="badge-preview-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modèle (template) de carte photo -->
   <template id="photoCardTemplate">
     <article class="photo-card">
@@ -177,6 +232,8 @@
   <!-- Librairies externes (CDN) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script src="script.js"></script>
 </body>

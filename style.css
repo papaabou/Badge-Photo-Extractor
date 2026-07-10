@@ -18,6 +18,8 @@
   --success: #3ecf8e;
   --danger: #ef5b6b;
   --danger-soft: rgba(239, 91, 107, 0.12);
+  --gold: #e0a940;
+  --gold-hover: #c9922e;
   --radius: 12px;
   --radius-sm: 8px;
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
@@ -216,6 +218,15 @@ body {
   border-color: var(--border);
   padding: 8px 14px;
   font-weight: 500;
+}
+
+.btn-accent {
+  background: var(--gold);
+  color: #1a1300;
+}
+
+.btn-accent:hover:not(:disabled) {
+  background: var(--gold-hover);
 }
 
 .btn-ghost:hover:not(:disabled) {
@@ -649,6 +660,65 @@ body {
   color: var(--danger);
 }
 
+/* ---------- Générateur de badges imprimables ---------- */
+
+.modal-lg {
+  max-width: 640px;
+}
+
+.badge-generator-count {
+  margin: -6px 0 18px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.badge-generator-body {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.logo-upload {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.logo-preview {
+  max-width: 60px;
+  max-height: 40px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #fff;
+  object-fit: contain;
+  padding: 2px;
+}
+
+.badge-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+}
+
+.badge-preview-label {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+
+.badge-preview-canvas {
+  width: 100%;
+  max-width: 260px;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  background: #fff;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 640px) {
@@ -698,5 +768,17 @@ body {
   .gallery {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 12px;
+  }
+
+  .badge-generator-body {
+    grid-template-columns: 1fr;
+  }
+
+  .badge-preview-wrap {
+    position: static;
+  }
+
+  .badge-preview-canvas {
+    max-width: 200px;
   }
 }

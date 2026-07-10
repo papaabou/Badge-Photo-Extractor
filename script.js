@@ -22,6 +22,15 @@ const BADGE_FORMATS = {
    puis remplacez la valeur ci-dessous par la clé obtenue. */
 const WEB3FORMS_ACCESS_KEY = "METTRE_LA_CLE_ICI";
 
+/* Formats de cartes disponibles pour le générateur de badges imprimables (en mm) */
+const BADGE_CARD_FORMATS = {
+  cr80: { widthMm: 86, heightMm: 54, orientation: "landscape" },
+  conference: { widthMm: 90, heightMm: 120, orientation: "portrait" },
+};
+
+/* Résolution de rendu des badges (pixels par mm) avant export en PDF */
+const BADGE_RENDER_SCALE = 8;
+
 /* ---------- Références DOM ---------- */
 
 const dropzone = document.getElementById("dropzone");
@@ -59,10 +68,27 @@ const contactForm = document.getElementById("contactForm");
 const contactSubmitBtn = document.getElementById("contactSubmitBtn");
 const contactFeedback = document.getElementById("contactFeedback");
 
+const openBadgeGeneratorBtn = document.getElementById("openBadgeGeneratorBtn");
+const closeBadgeGeneratorBtn = document.getElementById("closeBadgeGeneratorBtn");
+const badgeGeneratorOverlay = document.getElementById("badgeGeneratorOverlay");
+const badgeGeneratorCount = document.getElementById("badgeGeneratorCount");
+const badgeGeneratorForm = document.getElementById("badgeGeneratorForm");
+const badgeCardFormatSelect = document.getElementById("badgeCardFormat");
+const badgeSubtitleInput = document.getElementById("badgeSubtitle");
+const badgeLogoInput = document.getElementById("badgeLogoInput");
+const badgeLogoBtn = document.getElementById("badgeLogoBtn");
+const badgeLogoPreview = document.getElementById("badgeLogoPreview");
+const badgeLogoRemoveBtn = document.getElementById("badgeLogoRemoveBtn");
+const badgeIncludeQrCheckbox = document.getElementById("badgeIncludeQr");
+const badgeGenerateBtn = document.getElementById("badgeGenerateBtn");
+const badgeGeneratorFeedback = document.getElementById("badgeGeneratorFeedback");
+const badgePreviewCanvas = document.getElementById("badgePreviewCanvas");
+
 /* ---------- État de l'application ---------- */
 
 let photos = []; // { id, canvas, width, height, pageNum, indexInPage, selected, small, name }
 let photoIdCounter = 0;
+let badgeLogoImage = null; // <img> chargée depuis le fichier logo uploadé (ou null)
 
 /* ===========================================================
    Gestion de l'upload (clic + drag & drop)
@@ -894,5 +920,419 @@ contactForm?.addEventListener("submit", async (e) => {
   } finally {
     contactSubmitBtn.disabled = false;
     contactSubmitBtn.textContent = "Envoyer";
+  }
+});
+
+/* ===========================================================
+   Générateur de badges imprimables (PDF)
+   =========================================================== */
+
+const PLACEHOLDER_PHOTO_CANVAS = createPlaceholderPhotoCanvas();
+let badgePreviewToken = 0;
+
+function getBadgeSelection() {
+  return getVisiblePhotos().filter((p) => p.selected);
+}
+
+function updateBadgeGeneratorCount() {
+  const count = getBadgeSelection().length;
+  badgeGeneratorCount.textContent =
+    count > 0
+      ? `${count} badge${count > 1 ? "s" : ""} sera généré à partir de la sélection actuelle`
+      : "Aucune photo sélectionnée — sélectionnez au moins une photo dans la galerie";
+}
+
+function openBadgeGeneratorModal() {
+  updateBadgeGeneratorCount();
+  renderBadgePreview();
+  badgeGeneratorOverlay.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeBadgeGeneratorModal() {
+  badgeGeneratorOverlay.hidden = true;
+  document.body.style.overflow = "";
+}
+
+openBadgeGeneratorBtn?.addEventListener("click", openBadgeGeneratorModal);
+closeBadgeGeneratorBtn?.addEventListener("click", closeBadgeGeneratorModal);
+
+badgeGeneratorOverlay?.addEventListener("click", (e) => {
+  if (e.target === badgeGeneratorOverlay) closeBadgeGeneratorModal();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && badgeGeneratorOverlay && !badgeGeneratorOverlay.hidden) {
+    closeBadgeGeneratorModal();
+  }
+});
+
+badgeCardFormatSelect?.addEventListener("change", renderBadgePreview);
+badgeSubtitleInput?.addEventListener("input", renderBadgePreview);
+badgeIncludeQrCheckbox?.addEventListener("change", renderBadgePreview);
+
+badgeLogoBtn?.addEventListener("click", () => badgeLogoInput.click());
+
+badgeLogoInput?.addEventListener("change", () => {
+  const file = badgeLogoInput.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      badgeLogoImage = img;
+      badgeLogoPreview.src = reader.result;
+      badgeLogoPreview.hidden = false;
+      badgeLogoRemoveBtn.hidden = false;
+      renderBadgePreview();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+badgeLogoRemoveBtn?.addEventListener("click", () => {
+  badgeLogoImage = null;
+  badgeLogoInput.value = "";
+  badgeLogoPreview.hidden = true;
+  badgeLogoRemoveBtn.hidden = true;
+  renderBadgePreview();
+});
+
+function getBadgeRenderOptions() {
+  return {
+    formatKey: badgeCardFormatSelect.value,
+    subtitle: badgeSubtitleInput.value.trim(),
+    logoImage: badgeLogoImage,
+    includeQr: badgeIncludeQrCheckbox.checked,
+  };
+}
+
+/* Dessine un badge (photo + nom + sous-titre + logo/QR optionnels) sur un nouveau canvas */
+function renderBadgeCanvas(photo, options) {
+  const format = BADGE_CARD_FORMATS[options.formatKey];
+  const w = Math.round(format.widthMm * BADGE_RENDER_SCALE);
+  const h = Math.round(format.heightMm * BADGE_RENDER_SCALE);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "#d8d8d8";
+  ctx.lineWidth = Math.max(1, BADGE_RENDER_SCALE * 0.15);
+  ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, w - ctx.lineWidth, h - ctx.lineWidth);
+
+  const margin = 4 * BADGE_RENDER_SCALE;
+
+  if (format.orientation === "landscape") {
+    renderLandscapeBadge(ctx, w, h, margin, photo, options);
+  } else {
+    renderPortraitBadge(ctx, w, h, margin, photo, options);
+  }
+
+  return canvas;
+}
+
+/* Badge type carte CR80 : photo à gauche, texte à droite */
+function renderLandscapeBadge(ctx, w, h, margin, photo, options) {
+  const photoSize = h - margin * 2;
+  const photoX = margin;
+  const photoY = margin;
+
+  drawPhotoInBox(ctx, photo, photoX, photoY, photoSize, photoSize);
+
+  const textX = photoX + photoSize + margin;
+  const textMaxWidth = w - textX - margin;
+
+  if (options.logoImage) {
+    drawLogo(ctx, options.logoImage, w - margin, margin, textMaxWidth, h * 0.22, "right");
+  }
+
+  ctx.fillStyle = "#111111";
+  ctx.textAlign = "left";
+  const nameFontSize = Math.round(h * 0.13);
+  ctx.font = `bold ${nameFontSize}px Arial, sans-serif`;
+  const nameLines = wrapText(ctx, photo.name || "—", textMaxWidth, 2);
+  const nameStartY = h * 0.52;
+  drawLines(ctx, nameLines, textX, nameStartY, nameFontSize * 1.15);
+
+  if (options.subtitle) {
+    const subFontSize = Math.round(h * 0.08);
+    ctx.font = `${subFontSize}px Arial, sans-serif`;
+    ctx.fillStyle = "#5a5a5a";
+    ctx.fillText(options.subtitle, textX, nameStartY + nameLines.length * nameFontSize * 1.15 + subFontSize * 0.3, textMaxWidth);
+  }
+
+  if (options.qrCanvas) {
+    const qrSize = Math.min(h * 0.34, textMaxWidth * 0.42);
+    ctx.drawImage(options.qrCanvas, w - margin - qrSize, h - margin - qrSize, qrSize, qrSize);
+  }
+}
+
+/* Badge type conférence : photo centrée en haut, texte en dessous */
+function renderPortraitBadge(ctx, w, h, margin, photo, options) {
+  const logoZoneH = options.logoImage ? h * 0.09 : 0;
+  const photoSize = w - margin * 2;
+  const photoX = margin;
+  const photoY = margin + logoZoneH;
+
+  if (options.logoImage) {
+    drawLogo(ctx, options.logoImage, w / 2, margin, w * 0.6, logoZoneH, "center");
+  }
+
+  drawPhotoInBox(ctx, photo, photoX, photoY, photoSize, photoSize);
+
+  ctx.fillStyle = "#111111";
+  ctx.textAlign = "center";
+  const nameFontSize = Math.round(h * 0.052);
+  ctx.font = `bold ${nameFontSize}px Arial, sans-serif`;
+  const nameLines = wrapText(ctx, photo.name || "—", w - margin * 2, 2);
+  const nameStartY = photoY + photoSize + h * 0.075;
+  drawLines(ctx, nameLines, w / 2, nameStartY, nameFontSize * 1.2);
+
+  let cursorY = nameStartY + nameLines.length * nameFontSize * 1.2;
+
+  if (options.subtitle) {
+    const subFontSize = Math.round(h * 0.032);
+    ctx.font = `${subFontSize}px Arial, sans-serif`;
+    ctx.fillStyle = "#5a5a5a";
+    ctx.fillText(options.subtitle, w / 2, cursorY + subFontSize * 0.5, w - margin * 2);
+    cursorY += subFontSize * 1.4;
+  }
+
+  if (options.qrCanvas) {
+    const qrSize = w * 0.3;
+    ctx.drawImage(options.qrCanvas, (w - qrSize) / 2, h - margin - qrSize, qrSize, qrSize);
+  }
+}
+
+/* Recadre la photo en carré (réutilise le recadrage centré existant) et la dessine dans une zone */
+function drawPhotoInBox(ctx, photo, x, y, w, h) {
+  const cropped = cropCanvasForFormat(photo.canvas, "square");
+  ctx.drawImage(cropped, x, y, w, h);
+  ctx.strokeStyle = "#cccccc";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, w, h);
+}
+
+/* Dessine un logo en conservant ses proportions, ancré à droite/au centre/à gauche */
+function drawLogo(ctx, img, anchorX, anchorY, maxW, maxH, align) {
+  const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+  const w = img.width * ratio;
+  const h = img.height * ratio;
+  let x = anchorX;
+  if (align === "right") x = anchorX - w;
+  else if (align === "center") x = anchorX - w / 2;
+  ctx.drawImage(img, x, anchorY, w, h);
+}
+
+/* Découpe un texte en un nombre limité de lignes qui tiennent dans maxWidth */
+function wrapText(ctx, text, maxWidth, maxLines) {
+  const words = text.split(" ").filter(Boolean);
+  const lines = [];
+  let current = "";
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (current && ctx.measureText(test).width > maxWidth) {
+      lines.push(current);
+      current = word;
+      if (lines.length === maxLines - 1) break;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.slice(0, maxLines);
+}
+
+function drawLines(ctx, lines, x, y, lineHeight) {
+  lines.forEach((line, i) => ctx.fillText(line, x, y + i * lineHeight));
+}
+
+/* Génère un canevas contenant un QR code (texte -> image), via la librairie qrcodejs */
+function generateQrCanvas(text, sizePx) {
+  return new Promise((resolve) => {
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-9999px";
+    document.body.appendChild(container);
+
+    new QRCode(container, {
+      text: text || " ",
+      width: sizePx,
+      height: sizePx,
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+
+    setTimeout(() => {
+      const sourceCanvas = container.querySelector("canvas");
+      const sourceImg = container.querySelector("img");
+      const out = document.createElement("canvas");
+      out.width = sizePx;
+      out.height = sizePx;
+      const octx = out.getContext("2d");
+      if (sourceCanvas) {
+        octx.drawImage(sourceCanvas, 0, 0, sizePx, sizePx);
+      } else if (sourceImg) {
+        octx.drawImage(sourceImg, 0, 0, sizePx, sizePx);
+      }
+      document.body.removeChild(container);
+      resolve(out);
+    }, 60);
+  });
+}
+
+/* Crée une silhouette grise utilisée comme aperçu tant qu'aucune photo n'est sélectionnée */
+function createPlaceholderPhotoCanvas() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 200;
+  canvas.height = 200;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#e5e7eb";
+  ctx.fillRect(0, 0, 200, 200);
+  ctx.fillStyle = "#9ca3af";
+  ctx.beginPath();
+  ctx.arc(100, 78, 38, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(100, 210, 65, 65, 0, Math.PI, 0, true);
+  ctx.fill();
+  return canvas;
+}
+
+/* Met à jour l'aperçu du badge en fonction des réglages actuels du formulaire */
+async function renderBadgePreview() {
+  if (!badgePreviewCanvas) return;
+  const token = ++badgePreviewToken;
+
+  const options = getBadgeRenderOptions();
+  const selection = getBadgeSelection();
+  const previewPhoto = selection[0] || { canvas: PLACEHOLDER_PHOTO_CANVAS, name: "Nom Prénom" };
+
+  let qrCanvas = null;
+  if (options.includeQr) {
+    const format = BADGE_CARD_FORMATS[options.formatKey];
+    const qrPx = Math.round(Math.min(format.widthMm, format.heightMm) * BADGE_RENDER_SCALE * 0.32);
+    qrCanvas = await generateQrCanvas(previewPhoto.name || "Aperçu", qrPx);
+  }
+
+  if (token !== badgePreviewToken) return; // une saisie plus récente a déjà relancé un rendu
+
+  const canvas = renderBadgeCanvas(previewPhoto, { ...options, qrCanvas });
+  badgePreviewCanvas.width = canvas.width;
+  badgePreviewCanvas.height = canvas.height;
+  badgePreviewCanvas.getContext("2d").drawImage(canvas, 0, 0);
+}
+
+/* Ajoute de petits traits de coupe (repères d'impression) aux 4 coins d'un badge */
+function drawCutMarks(doc, x, y, w, h) {
+  const markLen = 2.5;
+  const gap = 0.8;
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.15);
+
+  const corners = [
+    [x, y, -1, -1],
+    [x + w, y, 1, -1],
+    [x, y + h, -1, 1],
+    [x + w, y + h, 1, 1],
+  ];
+
+  corners.forEach(([cx, cy, hDir, vDir]) => {
+    doc.line(cx + hDir * gap, cy, cx + hDir * (gap + markLen), cy);
+    doc.line(cx, cy + vDir * gap, cx, cy + vDir * (gap + markLen));
+  });
+}
+
+/* Génère le PDF final : une planche A4 avec autant de badges que possible par page */
+async function generateBadgePdf(photosList) {
+  const options = getBadgeRenderOptions();
+  const format = BADGE_CARD_FORMATS[options.formatKey];
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+
+  const pageW = 210;
+  const pageH = 297;
+  const pageMargin = 10;
+  const gap = 4;
+
+  const cardW = format.widthMm;
+  const cardH = format.heightMm;
+
+  const cols = Math.max(1, Math.floor((pageW - pageMargin * 2 + gap) / (cardW + gap)));
+  const rows = Math.max(1, Math.floor((pageH - pageMargin * 2 + gap) / (cardH + gap)));
+  const perPage = cols * rows;
+
+  const gridW = cols * cardW + (cols - 1) * gap;
+  const gridH = rows * cardH + (rows - 1) * gap;
+  const offsetX = pageMargin + (pageW - pageMargin * 2 - gridW) / 2;
+  const offsetY = pageMargin + (pageH - pageMargin * 2 - gridH) / 2;
+
+  for (let i = 0; i < photosList.length; i++) {
+    const photo = photosList[i];
+    const posInPage = i % perPage;
+
+    if (i > 0 && posInPage === 0) {
+      doc.addPage();
+    }
+
+    const col = posInPage % cols;
+    const row = Math.floor(posInPage / cols);
+    const x = offsetX + col * (cardW + gap);
+    const y = offsetY + row * (cardH + gap);
+
+    let qrCanvas = null;
+    if (options.includeQr) {
+      const qrPx = Math.round(Math.min(cardW, cardH) * BADGE_RENDER_SCALE * 0.32);
+      qrCanvas = await generateQrCanvas(photo.name || `Badge ${i + 1}`, qrPx);
+    }
+
+    const badgeCanvas = renderBadgeCanvas(photo, { ...options, qrCanvas });
+    const imgData = badgeCanvas.toDataURL("image/png");
+    doc.addImage(imgData, "PNG", x, y, cardW, cardH);
+    drawCutMarks(doc, x, y, cardW, cardH);
+  }
+
+  doc.save("badges.pdf");
+}
+
+function setBadgeGeneratorFeedback(message, type) {
+  badgeGeneratorFeedback.textContent = message;
+  badgeGeneratorFeedback.className = `contact-feedback${type ? ` ${type}` : ""}`;
+}
+
+badgeGeneratorForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const selection = getBadgeSelection();
+  if (selection.length === 0) {
+    setBadgeGeneratorFeedback(
+      "Sélectionnez au moins une photo dans la galerie avant de générer les badges.",
+      "error"
+    );
+    return;
+  }
+
+  badgeGenerateBtn.disabled = true;
+  badgeGenerateBtn.textContent = "Génération en cours…";
+  setBadgeGeneratorFeedback("", "");
+
+  try {
+    await generateBadgePdf(selection);
+    setBadgeGeneratorFeedback(
+      `${selection.length} badge${selection.length > 1 ? "s" : ""} généré${selection.length > 1 ? "s" : ""} avec succès.`,
+      "success"
+    );
+  } catch (err) {
+    setBadgeGeneratorFeedback("Une erreur est survenue pendant la génération du PDF.", "error");
+  } finally {
+    badgeGenerateBtn.disabled = false;
+    badgeGenerateBtn.textContent = "Générer le PDF";
   }
 });

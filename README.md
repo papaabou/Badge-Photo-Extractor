@@ -12,8 +12,9 @@ Application web **100% côté client** qui extrait les photos contenues dans un 
 6. **Détection du nom** — la position réelle de chaque image sur la page (calculée à partir de la matrice de transformation du PDF) est comparée au texte environnant (`page.getTextContent()`) pour retrouver le nom le plus proche (généralement sous la photo, sinon au-dessus). Le nom détecté est affiché dans un champ éditable — l'utilisateur peut le corriger si la détection se trompe — et sert de base au nom du fichier téléchargé.
 7. **Recadrage badge** — un sélecteur permet de recadrer (centré, sur canvas) chaque photo au format 35×45 mm (photo d'identité), carré 1:1, ou de garder l'original. Le recadrage est appliqué au moment du téléchargement.
 8. **Export** — téléchargement individuel en PNG, ou export groupé en ZIP (toutes les photos visibles, ou seulement la sélection) via [JSZip](https://stuk.github.io/jszip/).
+9. **Générateur de badges imprimables** — le bouton « 🪪 Générer les badges (PDF) » ouvre un panneau permettant de choisir un format de carte (CR80 86×54 mm ou badge conférence 90×120 mm), un sous-titre commun, un logo d'entreprise et un QR code optionnel (encodant le nom de la personne), puis génère une planche PDF A4 (via [jsPDF](https://github.com/parallax/jsPDF)) avec autant de badges que possible par page et des repères de coupe aux 4 coins. Le QR code est généré localement avec [qrcodejs](https://github.com/davidshimjs/qrcodejs) — aucune donnée n'y transite.
 
-Aucune bibliothèque n'est installée localement : PDF.js et JSZip sont chargés depuis un CDN (cdnjs) directement dans `index.html`.
+Aucune bibliothèque n'est installée localement : PDF.js, JSZip, jsPDF et qrcodejs sont chargés depuis un CDN (cdnjs) directement dans `index.html`.
 
 ## Structure du projet
 
