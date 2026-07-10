@@ -1,8 +1,15 @@
 # Badge Photo Extractor
 
-Application web **100% côté client** qui extrait les photos contenues dans un fichier PDF, pour préparer des photos de badges. Aucune donnée n'est envoyée à un serveur : tout le traitement (lecture du PDF, extraction des images, recadrage, export ZIP) se fait dans le navigateur de l'utilisateur.
+Application web **100% côté client** avec deux outils, accessibles par onglets :
 
-## Fonctionnement
+- **Extraire depuis un PDF** — extrait les photos contenues dans un fichier PDF, pour préparer des photos de badges.
+- **Photo pour badge** — recadre une photo unique (upload ou déjà extraite d'un PDF) au bon format pour un badge, une carte d'étudiant, une licence sportive ou un trombinoscope.
+
+⚠️ Aucun de ces deux outils n'est destiné à un usage administratif officiel (pas de photo de passeport ou de CNI, pas de conformité au format e-photo).
+
+Aucune donnée n'est envoyée à un serveur : tout le traitement (lecture du PDF, extraction des images, détection de visage, recadrage, export ZIP/PDF) se fait dans le navigateur de l'utilisateur.
+
+## Fonctionnement — Extraire depuis un PDF
 
 1. **Upload** — l'utilisateur choisit un PDF (bouton ou glisser-déposer).
 2. **Lecture** — [PDF.js](https://mozilla.github.io/pdf.js/) charge le PDF page par page.
@@ -14,7 +21,18 @@ Application web **100% côté client** qui extrait les photos contenues dans un 
 8. **Export** — téléchargement individuel en PNG, ou export groupé en ZIP (toutes les photos visibles, ou seulement la sélection) via [JSZip](https://stuk.github.io/jszip/).
 9. **Générateur de badges imprimables** — le bouton « 🪪 Générer les badges (PDF) » ouvre un panneau permettant de choisir un format de carte (CR80 86×54 mm ou badge conférence 90×120 mm), un sous-titre commun, un logo d'entreprise et un QR code optionnel (encodant le nom de la personne), puis génère une planche PDF A4 (via [jsPDF](https://github.com/parallax/jsPDF)) avec autant de badges que possible par page et des repères de coupe aux 4 coins. Le QR code est généré localement avec [qrcodejs](https://github.com/davidshimjs/qrcodejs) — aucune donnée n'y transite.
 
-Aucune bibliothèque n'est installée localement : PDF.js, JSZip, jsPDF et qrcodejs sont chargés depuis un CDN (cdnjs) directement dans `index.html`.
+## Fonctionnement — Photo pour badge
+
+1. **Source** — l'utilisateur upload une photo (JPG/PNG, bouton ou glisser-déposer) ou choisit une photo déjà extraite dans l'onglet PDF (miniatures affichées si des photos existent).
+2. **Détection de visage** — [MediaPipe Face Detection](https://ai.google.dev/edge/mediapipe/solutions/vision/face_detector) (modèle `blaze_face_short_range`, chargé en module ES depuis un CDN, exécuté 100% dans le navigateur via WebAssembly) propose un cadrage centré sur le visage détecté, avec le visage occupant environ 65% de la hauteur du cadre. **Si aucun visage n'est détecté (ou si le modèle ne charge pas), l'outil bascule silencieusement sur un cadrage centré simple** — jamais d'erreur bloquante.
+3. **Ajustement manuel** — la suggestion automatique reste modifiable : glisser sur l'aperçu pour repositionner, curseur pour zoomer (souris et tactile).
+4. **Formats** — 35×45 mm (badge standard), carré 1:1, 3:4, 2:3, ou dimensions personnalisées en mm. Export toujours à 300 DPI aux dimensions physiques choisies.
+5. **Export** — téléchargement en PNG ou JPG haute qualité.
+6. **Planche imprimable** — génère un PDF (10×15 cm ou A4) avec la photo répétée en grille et des repères de coupe aux 4 coins de chaque exemplaire, prêt pour un tirage chez un photographe.
+
+Le modèle de détection de visage (quelques Mo) est téléchargé depuis les serveurs Google/jsDelivr au premier usage de l'outil — c'est le seul appel réseau de cette fonctionnalité : la photo de l'utilisateur, elle, n'est jamais envoyée où que ce soit.
+
+Aucune bibliothèque n'est installée localement : PDF.js, JSZip, jsPDF, qrcodejs et MediaPipe Tasks Vision sont chargés depuis un CDN (cdnjs / jsDelivr) directement dans `index.html`.
 
 ## Structure du projet
 
@@ -77,6 +95,8 @@ par l'URL du profil réel.
 
 ## Confidentialité
 
-Toutes les opérations liées aux PDF (lecture, extraction, recadrage, génération du ZIP) s'exécutent dans le navigateur de l'utilisateur. Aucune photo, aucun fichier PDF n'est envoyé à un serveur — y compris après déploiement sur Vercel, qui ne fait que servir des fichiers statiques.
+Toutes les opérations sur les PDF et les photos (lecture, extraction, détection de visage, recadrage, génération du ZIP/PDF) s'exécutent dans le navigateur de l'utilisateur. Aucune photo, aucun fichier PDF n'est envoyé à un serveur — y compris après déploiement sur Vercel, qui ne fait que servir des fichiers statiques.
 
-Seule exception : le formulaire de contact envoie le nom, l'email et le message saisis à l'API de [Web3Forms](https://web3forms.com) (service tiers) au moment de l'envoi — aucune autre donnée du site n'y transite.
+Deux exceptions, aucune ne concernant les photos de l'utilisateur :
+- Le formulaire de contact envoie le nom, l'email et le message saisis à l'API de [Web3Forms](https://web3forms.com) (service tiers) au moment de l'envoi.
+- L'outil « Photo pour badge » télécharge le modèle de détection de visage (fichiers publics, quelques Mo) depuis les CDN Google/jsDelivr au premier usage.

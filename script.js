@@ -93,6 +93,33 @@ const cropResetBtn = document.getElementById("cropResetBtn");
 const cropCancelBtn = document.getElementById("cropCancelBtn");
 const cropApplyBtn = document.getElementById("cropApplyBtn");
 
+const tabPdfBtn = document.getElementById("tabPdfBtn");
+const tabPhotoBtn = document.getElementById("tabPhotoBtn");
+const pdfToolPanel = document.getElementById("pdfToolPanel");
+const photoToolPanel = document.getElementById("photoToolPanel");
+
+const ppbDropzone = document.getElementById("ppbDropzone");
+const ppbFileInput = document.getElementById("ppbFileInput");
+const ppbChooseBtn = document.getElementById("ppbChooseBtn");
+const ppbErrorMessage = document.getElementById("ppbErrorMessage");
+const ppbFromGalleryWrap = document.getElementById("ppbFromGalleryWrap");
+const ppbFromGalleryStrip = document.getElementById("ppbFromGalleryStrip");
+const ppbWorkspace = document.getElementById("ppbWorkspace");
+const ppbEmptyState = document.getElementById("ppbEmptyState");
+const ppbFormatSelect = document.getElementById("ppbFormat");
+const ppbCustomFields = document.getElementById("ppbCustomFields");
+const ppbCustomWidthInput = document.getElementById("ppbCustomWidth");
+const ppbCustomHeightInput = document.getElementById("ppbCustomHeight");
+const ppbFaceStatus = document.getElementById("ppbFaceStatus");
+const ppbCanvas = document.getElementById("ppbCanvas");
+const ppbZoomRange = document.getElementById("ppbZoomRange");
+const ppbResetBtn = document.getElementById("ppbResetBtn");
+const ppbDownloadPngBtn = document.getElementById("ppbDownloadPngBtn");
+const ppbDownloadJpgBtn = document.getElementById("ppbDownloadJpgBtn");
+const ppbSheetFormatSelect = document.getElementById("ppbSheetFormat");
+const ppbGenerateSheetBtn = document.getElementById("ppbGenerateSheetBtn");
+const ppbSheetFeedback = document.getElementById("ppbSheetFeedback");
+
 /* ---------- État de l'application ---------- */
 
 let photos = []; // { id, canvas, width, height, pageNum, indexInPage, selected, small, name, crop }
@@ -1540,3 +1567,440 @@ window.addEventListener("mouseup", endCropDrag);
 cropAdjustCanvas?.addEventListener("touchstart", startCropDrag, { passive: false });
 window.addEventListener("touchmove", moveCropDrag, { passive: false });
 window.addEventListener("touchend", endCropDrag);
+
+/* ===========================================================
+   Onglets (Extraction PDF <-> Photo pour badge)
+   =========================================================== */
+
+function activateTab(tab) {
+  const isPdf = tab === "pdf";
+  pdfToolPanel.hidden = !isPdf;
+  photoToolPanel.hidden = isPdf;
+  tabPdfBtn.classList.toggle("active", isPdf);
+  tabPhotoBtn.classList.toggle("active", !isPdf);
+  if (!isPdf) refreshPpbGalleryPicker();
+}
+
+tabPdfBtn?.addEventListener("click", () => activateTab("pdf"));
+tabPhotoBtn?.addEventListener("click", () => activateTab("photo"));
+
+/* ===========================================================
+   Photo pour badge — recadrage d'une photo unique avec suggestion
+   de cadrage automatique (détection de visage) et export multi-format.
+
+   Rappel : ceci ne produit PAS de photo conforme à un usage administratif
+   officiel (passeport, CNI). C'est un outil pour badges, cartes d'étudiant,
+   licences sportives, trombinoscopes, etc.
+   =========================================================== */
+
+/* Formats de sortie prédéfinis (dimensions physiques en mm, exportées à 300 DPI) */
+const PPB_FORMATS = {
+  id35x45: { widthMm: 35, heightMm: 45 },
+  square: { widthMm: 40, heightMm: 40 },
+  ratio34: { widthMm: 30, heightMm: 40 },
+  ratio23: { widthMm: 40, heightMm: 60 },
+};
+const PPB_DPI = 300;
+const PPB_MAX_DISPLAY = 480;
+
+const PPB_SHEET_SIZES = {
+  "10x15": { widthMm: 100, heightMm: 150 },
+  a4: { widthMm: 210, heightMm: 297 },
+};
+
+let ppbSourceImage = null; // <canvas> contenant la photo chargée
+let ppbCrop = { x: 0.5, y: 0.5, zoom: 1 };
+let ppbDisplayScale = 1;
+let ppbFaceDetector = null;
+let ppbDragging = false;
+let ppbDragStartClientX = 0;
+let ppbDragStartClientY = 0;
+let ppbDragStartStateX = 0.5;
+let ppbDragStartStateY = 0.5;
+
+/* ---------- Upload (clic + drag & drop) ---------- */
+
+ppbChooseBtn?.addEventListener("click", () => ppbFileInput.click());
+ppbDropzone?.addEventListener("click", () => ppbFileInput.click());
+ppbDropzone?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    ppbFileInput.click();
+  }
+});
+
+ppbFileInput?.addEventListener("change", () => {
+  if (ppbFileInput.files.length > 0) handlePpbFile(ppbFileInput.files[0]);
+});
+
+["dragenter", "dragover"].forEach((evt) => {
+  ppbDropzone?.addEventListener(evt, (e) => {
+    e.preventDefault();
+    ppbDropzone.classList.add("dragover");
+  });
+});
+
+["dragleave", "drop"].forEach((evt) => {
+  ppbDropzone?.addEventListener(evt, (e) => {
+    e.preventDefault();
+    ppbDropzone.classList.remove("dragover");
+  });
+});
+
+ppbDropzone?.addEventListener("drop", (e) => {
+  const file = e.dataTransfer.files[0];
+  if (file) handlePpbFile(file);
+});
+
+function handlePpbFile(file) {
+  hidePpbError();
+
+  if (!file.type.startsWith("image/")) {
+    showPpbError("Le fichier sélectionné n'est pas une image (JPG ou PNG attendu).");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      loadPpbSourceCanvas(canvas);
+    };
+    img.onerror = () => showPpbError("Impossible de lire cette image.");
+    img.src = reader.result;
+  };
+  reader.onerror = () => showPpbError("Impossible de lire ce fichier.");
+  reader.readAsDataURL(file);
+}
+
+function showPpbError(message) {
+  ppbErrorMessage.textContent = message;
+  ppbErrorMessage.classList.add("visible");
+}
+
+function hidePpbError() {
+  ppbErrorMessage.textContent = "";
+  ppbErrorMessage.classList.remove("visible");
+}
+
+/* ---------- Réutiliser une photo déjà extraite d'un PDF ---------- */
+
+function refreshPpbGalleryPicker() {
+  if (!ppbFromGalleryWrap) return;
+
+  if (photos.length === 0) {
+    ppbFromGalleryWrap.hidden = true;
+    return;
+  }
+
+  ppbFromGalleryWrap.hidden = false;
+  ppbFromGalleryStrip.innerHTML = "";
+
+  photos.forEach((photo) => {
+    const thumb = document.createElement("button");
+    thumb.type = "button";
+    thumb.className = "ppb-gallery-thumb";
+    thumb.title = photo.name || `Photo page ${photo.pageNum}`;
+
+    const img = document.createElement("img");
+    img.src = photo.canvas.toDataURL("image/png");
+    img.alt = photo.name || `Photo extraite de la page ${photo.pageNum}`;
+    thumb.appendChild(img);
+
+    thumb.addEventListener("click", () => {
+      hidePpbError();
+      loadPpbSourceCanvas(photo.canvas);
+    });
+
+    ppbFromGalleryStrip.appendChild(thumb);
+  });
+}
+
+/* ---------- Chargement d'une photo dans l'espace de travail ---------- */
+
+async function loadPpbSourceCanvas(canvas) {
+  ppbSourceImage = canvas;
+  ppbCrop = { x: 0.5, y: 0.5, zoom: 1 };
+  ppbZoomRange.value = "1";
+
+  ppbEmptyState.hidden = true;
+  ppbWorkspace.hidden = false;
+
+  renderPpbCanvas();
+  await runPpbFaceDetection();
+}
+
+/* ---------- Format de sortie actif ---------- */
+
+ppbFormatSelect?.addEventListener("change", () => {
+  ppbCustomFields.hidden = ppbFormatSelect.value !== "custom";
+  renderPpbCanvas();
+});
+
+ppbCustomWidthInput?.addEventListener("input", renderPpbCanvas);
+ppbCustomHeightInput?.addEventListener("input", renderPpbCanvas);
+
+function getPpbActiveFormat() {
+  if (ppbFormatSelect.value === "custom") {
+    const widthMm = parseFloat(ppbCustomWidthInput.value) || 35;
+    const heightMm = parseFloat(ppbCustomHeightInput.value) || 45;
+    return { widthMm, heightMm };
+  }
+  return PPB_FORMATS[ppbFormatSelect.value] || PPB_FORMATS.id35x45;
+}
+
+/* ---------- Détection de visage (MediaPipe) avec repli silencieux ---------- */
+
+async function getPpbFaceDetector() {
+  if (ppbFaceDetector) return ppbFaceDetector;
+  if (typeof window.__initFaceDetector !== "function") return null;
+  try {
+    ppbFaceDetector = await window.__initFaceDetector();
+    return ppbFaceDetector;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function runPpbFaceDetection() {
+  ppbFaceStatus.textContent = "Détection du visage…";
+
+  try {
+    const detector = await getPpbFaceDetector();
+    if (!detector) throw new Error("Détecteur indisponible");
+
+    const result = detector.detect(ppbSourceImage);
+    const detection = result && result.detections && result.detections[0];
+    if (!detection) throw new Error("Aucun visage détecté");
+
+    const { originX, originY, width, height } = detection.boundingBox;
+    const sw = ppbSourceImage.width;
+    const sh = ppbSourceImage.height;
+
+    const faceCenterX = (originX + width / 2) / sw;
+    // léger décalage vers le haut pour laisser de la place sous le menton (épaules, cravate...)
+    const faceCenterY = (originY + height * 0.42) / sh;
+
+    // on veut que le visage occupe environ 65% de la hauteur du cadre final
+    const targetFaceHeightRatio = 0.65;
+    const format = getPpbActiveFormat();
+    const ratio = format.widthMm / format.heightMm;
+    const baseFit = computeCropRect(ppbSourceImage, ratio, DEFAULT_CROP_STATE);
+    const desiredCropHeightPx = height / targetFaceHeightRatio;
+    const zoom = Math.min(MAX_CROP_ZOOM, Math.max(1, baseFit.cropH / desiredCropHeightPx));
+
+    ppbCrop = { x: faceCenterX, y: faceCenterY, zoom };
+    ppbZoomRange.value = String(zoom);
+    ppbFaceStatus.textContent = "Visage détecté — cadrage automatique appliqué ✓";
+  } catch (err) {
+    ppbCrop = { ...DEFAULT_CROP_STATE };
+    ppbZoomRange.value = "1";
+    ppbFaceStatus.textContent = "Visage non détecté — cadrage centré appliqué (ajustable manuellement).";
+  } finally {
+    renderPpbCanvas();
+  }
+}
+
+ppbResetBtn?.addEventListener("click", () => {
+  if (!ppbSourceImage) return;
+  runPpbFaceDetection();
+});
+
+/* ---------- Aperçu interactif (glisser pour repositionner, curseur pour zoomer) ---------- */
+
+function renderPpbCanvas() {
+  if (!ppbSourceImage) return;
+
+  const sw = ppbSourceImage.width;
+  const sh = ppbSourceImage.height;
+  const scale = Math.min(PPB_MAX_DISPLAY / sw, PPB_MAX_DISPLAY / sh, 1) || 1;
+  const displayW = Math.max(1, Math.round(sw * scale));
+  const displayH = Math.max(1, Math.round(sh * scale));
+
+  ppbCanvas.width = displayW;
+  ppbCanvas.height = displayH;
+  ppbDisplayScale = scale;
+
+  const ctx = ppbCanvas.getContext("2d");
+  ctx.clearRect(0, 0, displayW, displayH);
+  ctx.drawImage(ppbSourceImage, 0, 0, displayW, displayH);
+
+  const format = getPpbActiveFormat();
+  const ratio = format.widthMm / format.heightMm;
+  const { cropX, cropY, cropW, cropH } = computeCropRect(ppbSourceImage, ratio, ppbCrop);
+
+  const rx = cropX * scale;
+  const ry = cropY * scale;
+  const rw = cropW * scale;
+  const rh = cropH * scale;
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+  ctx.fillRect(0, 0, displayW, ry);
+  ctx.fillRect(0, ry + rh, displayW, displayH - ry - rh);
+  ctx.fillRect(0, ry, rx, rh);
+  ctx.fillRect(rx + rw, ry, displayW - rx - rw, rh);
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(rx, ry, rw, rh);
+}
+
+ppbZoomRange?.addEventListener("input", () => {
+  ppbCrop.zoom = parseFloat(ppbZoomRange.value) || 1;
+  renderPpbCanvas();
+});
+
+function getPpbEventPoint(e) {
+  if (e.touches && e.touches.length > 0) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  return { x: e.clientX, y: e.clientY };
+}
+
+function startPpbDrag(e) {
+  if (!ppbSourceImage) return;
+  ppbDragging = true;
+  const point = getPpbEventPoint(e);
+  ppbDragStartClientX = point.x;
+  ppbDragStartClientY = point.y;
+  ppbDragStartStateX = ppbCrop.x;
+  ppbDragStartStateY = ppbCrop.y;
+  e.preventDefault();
+}
+
+function movePpbDrag(e) {
+  if (!ppbDragging || !ppbSourceImage) return;
+  const point = getPpbEventPoint(e);
+  const dxDisplay = point.x - ppbDragStartClientX;
+  const dyDisplay = point.y - ppbDragStartClientY;
+
+  const sw = ppbSourceImage.width;
+  const sh = ppbSourceImage.height;
+  const dxNorm = dxDisplay / ppbDisplayScale / sw;
+  const dyNorm = dyDisplay / ppbDisplayScale / sh;
+
+  ppbCrop.x = Math.min(1, Math.max(0, ppbDragStartStateX + dxNorm));
+  ppbCrop.y = Math.min(1, Math.max(0, ppbDragStartStateY + dyNorm));
+  renderPpbCanvas();
+  e.preventDefault();
+}
+
+function endPpbDrag() {
+  ppbDragging = false;
+}
+
+ppbCanvas?.addEventListener("mousedown", startPpbDrag);
+window.addEventListener("mousemove", movePpbDrag);
+window.addEventListener("mouseup", endPpbDrag);
+
+ppbCanvas?.addEventListener("touchstart", startPpbDrag, { passive: false });
+window.addEventListener("touchmove", movePpbDrag, { passive: false });
+window.addEventListener("touchend", endPpbDrag);
+
+/* ---------- Export (PNG / JPG, dimensions physiques réelles à 300 DPI) ---------- */
+
+function renderPpbExportCanvas() {
+  const format = getPpbActiveFormat();
+  const ratio = format.widthMm / format.heightMm;
+  const outW = Math.round((format.widthMm / 25.4) * PPB_DPI);
+  const outH = Math.round((format.heightMm / 25.4) * PPB_DPI);
+  const { cropX, cropY, cropW, cropH } = computeCropRect(ppbSourceImage, ratio, ppbCrop);
+
+  const out = document.createElement("canvas");
+  out.width = outW;
+  out.height = outH;
+  out.getContext("2d").drawImage(ppbSourceImage, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
+  return out;
+}
+
+ppbDownloadPngBtn?.addEventListener("click", async () => {
+  if (!ppbSourceImage) return;
+  const canvas = renderPpbExportCanvas();
+  const blob = await canvasToBlob(canvas);
+  triggerDownload(blob, "photo_badge.png");
+});
+
+ppbDownloadJpgBtn?.addEventListener("click", async () => {
+  if (!ppbSourceImage) return;
+  const canvas = renderPpbExportCanvas();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+  triggerDownload(blob, "photo_badge.jpg");
+});
+
+/* ---------- Planche imprimable (PDF, grille + traits de coupe) ---------- */
+
+function setPpbSheetFeedback(message, type) {
+  ppbSheetFeedback.textContent = message;
+  ppbSheetFeedback.className = `contact-feedback${type ? ` ${type}` : ""}`;
+}
+
+async function generatePpbSheet() {
+  const format = getPpbActiveFormat();
+  const sheet = PPB_SHEET_SIZES[ppbSheetFormatSelect.value] || PPB_SHEET_SIZES["10x15"];
+
+  const pageMargin = 5;
+  const gap = 3;
+  const cardW = format.widthMm;
+  const cardH = format.heightMm;
+
+  if (cardW > sheet.widthMm - pageMargin * 2 || cardH > sheet.heightMm - pageMargin * 2) {
+    throw new Error("Format de photo trop grand pour cette planche");
+  }
+
+  const exportCanvas = renderPpbExportCanvas();
+  const imgData = exportCanvas.toDataURL("image/jpeg", 0.95);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    unit: "mm",
+    format: [sheet.widthMm, sheet.heightMm],
+    orientation: sheet.widthMm > sheet.heightMm ? "landscape" : "portrait",
+  });
+
+  const cols = Math.max(1, Math.floor((sheet.widthMm - pageMargin * 2 + gap) / (cardW + gap)));
+  const rows = Math.max(1, Math.floor((sheet.heightMm - pageMargin * 2 + gap) / (cardH + gap)));
+
+  const gridW = cols * cardW + (cols - 1) * gap;
+  const gridH = rows * cardH + (rows - 1) * gap;
+  const offsetX = pageMargin + (sheet.widthMm - pageMargin * 2 - gridW) / 2;
+  const offsetY = pageMargin + (sheet.heightMm - pageMargin * 2 - gridH) / 2;
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = offsetX + col * (cardW + gap);
+      const y = offsetY + row * (cardH + gap);
+      doc.addImage(imgData, "JPEG", x, y, cardW, cardH);
+      drawCutMarks(doc, x, y, cardW, cardH);
+    }
+  }
+
+  doc.save("planche_photos.pdf");
+}
+
+ppbGenerateSheetBtn?.addEventListener("click", async () => {
+  if (!ppbSourceImage) return;
+
+  ppbGenerateSheetBtn.disabled = true;
+  const originalLabel = ppbGenerateSheetBtn.textContent;
+  ppbGenerateSheetBtn.textContent = "Génération en cours…";
+  setPpbSheetFeedback("", "");
+
+  try {
+    await generatePpbSheet();
+    setPpbSheetFeedback("Planche PDF générée avec succès.", "success");
+  } catch (err) {
+    setPpbSheetFeedback(
+      err.message === "Format de photo trop grand pour cette planche"
+        ? "Le format de photo choisi est trop grand pour cette planche."
+        : "Une erreur est survenue pendant la génération du PDF.",
+      "error"
+    );
+  } finally {
+    ppbGenerateSheetBtn.disabled = false;
+    ppbGenerateSheetBtn.textContent = originalLabel;
+  }
+});

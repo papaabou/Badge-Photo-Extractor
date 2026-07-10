@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Badge Photo Extractor — Extraction de photos de badges depuis un PDF</title>
-  <meta name="description" content="Extrayez les photos d'identité contenues dans un PDF pour préparer vos badges. 100% local, aucune donnée envoyée sur un serveur." />
+  <title>Badge Photo Extractor — Photos pour badges depuis un PDF ou en une seule photo</title>
+  <meta name="description" content="Extrayez les photos d'un PDF ou recadrez une photo unique pour préparer vos badges, cartes ou trombinoscopes. 100% local, aucune donnée envoyée sur un serveur." />
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪪</text></svg>" />
 </head>
@@ -19,13 +19,23 @@
           <span class="brand-icon">🪪</span>
           <div>
             <h1>Badge Photo Extractor</h1>
-            <p class="tagline">Extrayez les photos d'un PDF pour vos badges — 100% dans votre navigateur</p>
+            <p class="tagline">Photos pour badges, depuis un PDF ou une seule photo — 100% dans votre navigateur</p>
           </div>
         </div>
       </div>
     </header>
 
+    <!-- Onglets de navigation entre les deux outils -->
+    <nav class="tabs">
+      <div class="tabs-inner">
+        <button type="button" class="tab-btn active" id="tabPdfBtn">📄 Extraire depuis un PDF</button>
+        <button type="button" class="tab-btn" id="tabPhotoBtn">🙂 Photo pour badge</button>
+      </div>
+    </nav>
+
     <main class="main">
+
+     <div id="pdfToolPanel">
 
       <!-- Zone d'upload -->
       <section class="upload-section" id="uploadSection">
@@ -89,6 +99,112 @@
 
       <!-- Galerie -->
       <section class="gallery" id="gallery" hidden></section>
+
+     </div>
+
+     <!-- Outil "Photo pour badge" -->
+     <div id="photoToolPanel" hidden>
+
+      <p class="tool-intro">
+        Recadrez une photo au bon format pour un badge, une carte d'étudiant, une licence sportive
+        ou un trombinoscome — sans usage administratif officiel (pas de passeport, pas de CNI).
+      </p>
+
+      <!-- Zone d'upload d'une photo -->
+      <section class="upload-section" id="ppbUploadSection">
+        <div class="dropzone" id="ppbDropzone" tabindex="0" role="button" aria-label="Déposer ou choisir une photo">
+          <div class="dropzone-content">
+            <span class="dropzone-icon">🙂</span>
+            <p class="dropzone-title">Déposez votre photo ici</p>
+            <p class="dropzone-sub">ou</p>
+            <button type="button" class="btn btn-primary" id="ppbChooseBtn">Choisir une photo</button>
+            <input type="file" id="ppbFileInput" accept="image/*" hidden />
+          </div>
+        </div>
+        <p class="error-message" id="ppbErrorMessage" role="alert"></p>
+
+        <!-- Sélection à partir des photos déjà extraites d'un PDF -->
+        <div class="ppb-from-gallery" id="ppbFromGalleryWrap" hidden>
+          <p class="ppb-from-gallery-label">Ou choisir une photo déjà extraite :</p>
+          <div class="ppb-from-gallery-strip" id="ppbFromGalleryStrip"></div>
+        </div>
+      </section>
+
+      <!-- Espace de travail : visible une fois une photo chargée -->
+      <section class="ppb-workspace" id="ppbWorkspace" hidden>
+
+        <div class="options-panel">
+          <div class="option-group">
+            <label for="ppbFormat">Format de sortie</label>
+            <select id="ppbFormat">
+              <option value="id35x45">35 × 45 mm (badge standard)</option>
+              <option value="square">Carré 1:1 (40 × 40 mm)</option>
+              <option value="ratio34">Format 3:4 (30 × 40 mm)</option>
+              <option value="ratio23">Format 2:3 (40 × 60 mm)</option>
+              <option value="custom">Personnalisé…</option>
+            </select>
+          </div>
+
+          <div class="option-group ppb-custom-fields" id="ppbCustomFields" hidden>
+            <label>Dimensions personnalisées (mm)</label>
+            <div class="ppb-custom-inputs">
+              <input type="number" id="ppbCustomWidth" min="10" max="300" value="35" step="0.5" aria-label="Largeur en mm" />
+              <span>×</span>
+              <input type="number" id="ppbCustomHeight" min="10" max="300" value="45" step="0.5" aria-label="Hauteur en mm" />
+              <span>mm — 300 DPI</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="ppb-face-status" id="ppbFaceStatus"></p>
+
+        <div class="crop-adjust-canvas-wrap">
+          <canvas id="ppbCanvas" class="crop-adjust-canvas"></canvas>
+        </div>
+
+        <div class="crop-adjust-controls">
+          <label for="ppbZoomRange">Zoom</label>
+          <input type="range" id="ppbZoomRange" min="1" max="3" step="0.05" value="1" />
+        </div>
+
+        <div class="crop-adjust-actions">
+          <button type="button" class="btn btn-ghost" id="ppbResetBtn">Réinitialiser le cadrage</button>
+        </div>
+
+        <div class="ppb-export-actions">
+          <button type="button" class="btn btn-secondary" id="ppbDownloadPngBtn">Télécharger en PNG</button>
+          <button type="button" class="btn btn-secondary" id="ppbDownloadJpgBtn">Télécharger en JPG</button>
+        </div>
+
+        <!-- Planche imprimable -->
+        <div class="ppb-sheet-panel">
+          <h3 class="ppb-sheet-title">Planche imprimable</h3>
+          <p class="ppb-sheet-hint">
+            Génère une planche PDF avec votre photo répétée en grille et des traits de coupe,
+            prête à imprimer chez un tireur photo.
+          </p>
+          <div class="ppb-sheet-controls">
+            <div class="option-group">
+              <label for="ppbSheetFormat">Format de la planche</label>
+              <select id="ppbSheetFormat">
+                <option value="10x15">10 × 15 cm (format photo classique)</option>
+                <option value="a4">A4 (210 × 297 mm)</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-accent" id="ppbGenerateSheetBtn">🖨️ Générer la planche (PDF)</button>
+          </div>
+          <p class="contact-feedback" id="ppbSheetFeedback" role="status"></p>
+        </div>
+
+      </section>
+
+      <!-- État vide -->
+      <section class="empty-state" id="ppbEmptyState">
+        <span class="empty-icon">🙂</span>
+        <p>Aucune photo pour le moment.<br>Importez une photo pour commencer le recadrage.</p>
+      </section>
+
+     </div>
 
     </main>
 
@@ -266,6 +382,34 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- MediaPipe Face Detection (module ES, exécution 100% dans le navigateur via WebAssembly).
+       Le modèle IA (quelques Mo) est téléchargé au premier usage de l'outil "Photo pour badge" ;
+       la photo de l'utilisateur, elle, n'est jamais envoyée où que ce soit. -->
+  <script type="module">
+    import { FaceDetector, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+    let faceDetectorPromise = null;
+
+    window.__initFaceDetector = function () {
+      if (!faceDetectorPromise) {
+        faceDetectorPromise = (async () => {
+          const filesetResolver = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+          );
+          return FaceDetector.createFromOptions(filesetResolver, {
+            baseOptions: {
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+              delegate: "CPU",
+            },
+            runningMode: "IMAGE",
+          });
+        })();
+      }
+      return faceDetectorPromise;
+    };
+  </script>
 
   <script src="script.js"></script>
 </body>
