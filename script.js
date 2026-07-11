@@ -1234,20 +1234,89 @@ function drawLines(ctx, lines, x, y, lineHeight) {
   lines.forEach((line, i) => ctx.fillText(line, x, y + i * lineHeight));
 }
 
+/* Échappe les caractères spéciaux d'un champ vCard (norme RFC 6350) */
+function escapeVCardValue(value) {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\n/g, "\\n");
+}
+
+/* Construit une fiche de contact (vCard) à partir du nom et du sous-titre du badge :
+   au scan, le QR code propose d'ajouter directement la personne aux contacts du téléphone,
+   au lieu de simplement afficher un texte déjà lisible sur le badge. */
+function buildBadgeVCard(name, subtitle) {
+  // qrcodejs encode le texte en UTF-8 sans déclarer d'indicateur ECI/UTF-8 dans le QR code :
+  // beaucoup de lecteurs (dont certains téléphones) retombent alors sur un décodage
+  // ISO-8859-1 par défaut et affichent un texte vide ou corrompu dès qu'il y a un accent.
+  // On retire donc les accents du contenu du QR pour garantir une lecture fiable partout.
+  const safeName = escapeVCardValue(stripAccents((name || "").trim() || "Badge"));
+  const lines = ["BEGIN:VCARD", "VERSION:3.0", `N:${safeName};;;;`, `FN:${safeName}`];
+  if (subtitle) {
+    lines.push(`ORG:${escapeVCardValue(stripAccents(subtitle))}`);
+  }
+  lines.push("END:VCARD");
+  return lines.join("\n");
+}
+
+/* Supprime les diacritiques (accents) d'une chaîne */
+function stripAccents(str) {
+  return String(str)
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
 /* Génère un canevas contenant un QR code (texte -> image), via la librairie qrcodejs */
 function generateQrCanvas(text, sizePx) {
   return new Promise((resolve) => {
-    const container = document.createElement("div");
-    container.style.position = "fixed";
-    container.style.left = "-9999px";
-    document.body.appendChild(container);
+    const content = text || " ";
 
-    new QRCode(container, {
-      text: text || " ",
-      width: sizePx,
-      height: sizePx,
-      correctLevel: QRCode.CorrectLevel.M,
-    });
+    // qrcodejs calcule lui-même sa taille de grille à partir du texte et du niveau de
+    // correction, en ignorant l'option "typeNumber" qu'on pourrait lui passer. Sa table
+    // d'estimation a un bug d'arrondi : pour certaines longueurs de texte pile à la
+    // frontière d'une taille de grille, elle lève "code length overflow" alors que le
+    // contenu tiendrait très bien avec un autre niveau de correction. On essaie donc les
+    // 4 niveaux disponibles, puis on raccourcit le texte en dernier recours plutôt que
+    // de faire planter la génération du badge.
+    function tryBuild(value) {
+      for (const level of [
+        QRCode.CorrectLevel.L,
+        QRCode.CorrectLevel.M,
+        QRCode.CorrectLevel.Q,
+        QRCode.CorrectLevel.H,
+      ]) {
+        const candidate = document.createElement("div");
+        candidate.style.position = "fixed";
+        candidate.style.left = "-9999px";
+        document.body.appendChild(candidate);
+
+        try {
+          new QRCode(candidate, { text: value, width: sizePx, height: sizePx, correctLevel: level });
+          return candidate;
+        } catch (err) {
+          document.body.removeChild(candidate);
+        }
+      }
+      return null;
+    }
+
+    let container = tryBuild(content);
+    let value = content;
+    while (!container && value.length > 10) {
+      value = value.slice(0, Math.floor(value.length * 0.85));
+      container = tryBuild(value);
+    }
+
+    if (!container) {
+      // Même un texte très court ne passe pas (cas extrême) : on renvoie un canvas vide
+      // plutôt que de faire planter la génération du badge.
+      const empty = document.createElement("canvas");
+      empty.width = sizePx;
+      empty.height = sizePx;
+      resolve(empty);
+      return;
+    }
 
     setTimeout(() => {
       const sourceCanvas = container.querySelector("canvas");
@@ -1298,7 +1367,7 @@ async function renderBadgePreview() {
   if (options.includeQr) {
     const format = BADGE_CARD_FORMATS[options.formatKey];
     const qrPx = Math.round(Math.min(format.widthMm, format.heightMm) * BADGE_RENDER_SCALE * 0.32);
-    qrCanvas = await generateQrCanvas(previewPhoto.name || "Aperçu", qrPx);
+    qrCanvas = await generateQrCanvas(buildBadgeVCard(previewPhoto.name || "Aperçu", options.subtitle), qrPx);
   }
 
   if (token !== badgePreviewToken) return; // une saisie plus récente a déjà relancé un rendu
@@ -1374,7 +1443,7 @@ async function generateBadgePdf(photosList) {
     let qrCanvas = null;
     if (options.includeQr) {
       const qrPx = Math.round(Math.min(cardW, cardH) * BADGE_RENDER_SCALE * 0.32);
-      qrCanvas = await generateQrCanvas(photo.name || `Badge ${i + 1}`, qrPx);
+      qrCanvas = await generateQrCanvas(buildBadgeVCard(photo.name || `Badge ${i + 1}`, options.subtitle), qrPx);
     }
 
     const badgeCanvas = renderBadgeCanvas(photo, { ...options, qrCanvas });
