@@ -1143,9 +1143,16 @@ function renderLandscapeBadge(ctx, w, h, margin, photo, options) {
 function renderPortraitBadge(ctx, w, h, margin, photo, options) {
   const logoZoneH = options.logoImage ? h * 0.09 : 0;
   const qrZoneH = options.qrCanvas ? h * 0.24 : 0;
+  // Espace toujours réservé sous la photo pour le nom + le sous-titre.
+  const nameZoneH = h * 0.22;
 
-  const photoSize = w - margin * 2;
-  const photoX = margin;
+  // La photo carrée était auparavant dimensionnée uniquement sur la largeur de la carte,
+  // ce qui pouvait la faire déborder sur l'espace du nom / du QR code (carte "conférence"
+  // plus haute que large). On la borne aussi par la hauteur réellement disponible.
+  const maxPhotoW = w - margin * 2;
+  const maxPhotoH = h - margin * 2 - logoZoneH - qrZoneH - nameZoneH;
+  const photoSize = Math.max(20, Math.min(maxPhotoW, maxPhotoH));
+  const photoX = (w - photoSize) / 2;
   const photoY = margin + logoZoneH;
 
   if (options.logoImage) {
