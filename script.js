@@ -1094,7 +1094,8 @@ function renderBadgeCanvas(photo, options) {
   return canvas;
 }
 
-/* Badge type carte CR80 : photo à gauche, texte à droite */
+/* Badge type carte CR80 : photo à gauche, texte au milieu, QR (si présent) dans sa propre
+   colonne à droite — jamais superposé au texte, contrairement à l'ancienne version. */
 function renderLandscapeBadge(ctx, w, h, margin, photo, options) {
   const photoSize = h - margin * 2;
   const photoX = margin;
@@ -1102,11 +1103,17 @@ function renderLandscapeBadge(ctx, w, h, margin, photo, options) {
 
   drawPhotoInBox(ctx, photo, photoX, photoY, photoSize, photoSize);
 
+  // Le QR code réserve sa propre colonne verticale à droite : le texte ne s'étend
+  // jamais dans cet espace, donc il ne peut plus être recouvert par le QR.
+  const qrSize = options.qrCanvas ? Math.min(h * 0.6, (w - photoSize - margin * 3) * 0.4) : 0;
+  const qrColumnW = options.qrCanvas ? qrSize + margin : 0;
+
   const textX = photoX + photoSize + margin;
-  const textMaxWidth = w - textX - margin;
+  const textRight = w - margin - qrColumnW;
+  const textMaxWidth = textRight - textX;
 
   if (options.logoImage) {
-    drawLogo(ctx, options.logoImage, w - margin, margin, textMaxWidth, h * 0.22, "right");
+    drawLogo(ctx, options.logoImage, textRight, margin, textMaxWidth, h * 0.22, "right");
   }
 
   ctx.fillStyle = "#111111";
@@ -1125,14 +1132,18 @@ function renderLandscapeBadge(ctx, w, h, margin, photo, options) {
   }
 
   if (options.qrCanvas) {
-    const qrSize = Math.min(h * 0.34, textMaxWidth * 0.42);
-    ctx.drawImage(options.qrCanvas, w - margin - qrSize, h - margin - qrSize, qrSize, qrSize);
+    const qrX = w - margin - qrSize;
+    const qrY = (h - qrSize) / 2;
+    ctx.drawImage(options.qrCanvas, qrX, qrY, qrSize, qrSize);
   }
 }
 
-/* Badge type conférence : photo centrée en haut, texte en dessous */
+/* Badge type conférence : photo centrée en haut, texte en dessous, QR (si présent) dans
+   une bande réservée tout en bas — jamais superposé au nom / sous-titre. */
 function renderPortraitBadge(ctx, w, h, margin, photo, options) {
   const logoZoneH = options.logoImage ? h * 0.09 : 0;
+  const qrZoneH = options.qrCanvas ? h * 0.24 : 0;
+
   const photoSize = w - margin * 2;
   const photoX = margin;
   const photoY = margin + logoZoneH;
@@ -1142,6 +1153,9 @@ function renderPortraitBadge(ctx, w, h, margin, photo, options) {
   }
 
   drawPhotoInBox(ctx, photo, photoX, photoY, photoSize, photoSize);
+
+  // Zone de texte bornée : elle ne descend jamais dans la bande réservée au QR code.
+  const textZoneBottom = h - margin - qrZoneH;
 
   ctx.fillStyle = "#111111";
   ctx.textAlign = "center";
@@ -1155,15 +1169,17 @@ function renderPortraitBadge(ctx, w, h, margin, photo, options) {
 
   if (options.subtitle) {
     const subFontSize = Math.round(h * 0.032);
+    const subtitleY = Math.min(cursorY + subFontSize * 0.5, textZoneBottom);
     ctx.font = `${subFontSize}px Arial, sans-serif`;
     ctx.fillStyle = "#5a5a5a";
-    ctx.fillText(options.subtitle, w / 2, cursorY + subFontSize * 0.5, w - margin * 2);
-    cursorY += subFontSize * 1.4;
+    ctx.fillText(options.subtitle, w / 2, subtitleY, w - margin * 2);
   }
 
   if (options.qrCanvas) {
-    const qrSize = w * 0.3;
-    ctx.drawImage(options.qrCanvas, (w - qrSize) / 2, h - margin - qrSize, qrSize, qrSize);
+    const qrSize = Math.min(qrZoneH * 0.85, w * 0.32);
+    const qrX = (w - qrSize) / 2;
+    const qrY = h - margin - qrSize;
+    ctx.drawImage(options.qrCanvas, qrX, qrY, qrSize, qrSize);
   }
 }
 
@@ -1312,7 +1328,11 @@ async function generateBadgePdf(photosList) {
   const format = BADGE_CARD_FORMATS[options.formatKey];
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  // compress: true + images en JPEG (au lieu de PNG) : un PDF en PNG non compressé avec
+  // plusieurs badges par page pouvait dépasser plusieurs dizaines de Mo et devenait très
+  // long à générer/ouvrir. Les badges sont des photos (pas de transparence), le JPEG ne
+  // perd donc rien de visible tout en réduisant le poids d'un facteur 10 à 20.
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
 
   const pageW = 210;
   const pageH = 297;
@@ -1351,8 +1371,8 @@ async function generateBadgePdf(photosList) {
     }
 
     const badgeCanvas = renderBadgeCanvas(photo, { ...options, qrCanvas });
-    const imgData = badgeCanvas.toDataURL("image/png");
-    doc.addImage(imgData, "PNG", x, y, cardW, cardH);
+    const imgData = badgeCanvas.toDataURL("image/jpeg", 0.92);
+    doc.addImage(imgData, "JPEG", x, y, cardW, cardH);
     drawCutMarks(doc, x, y, cardW, cardH);
   }
 
@@ -1959,6 +1979,7 @@ async function generatePpbSheet() {
     unit: "mm",
     format: [sheet.widthMm, sheet.heightMm],
     orientation: sheet.widthMm > sheet.heightMm ? "landscape" : "portrait",
+    compress: true,
   });
 
   const cols = Math.max(1, Math.floor((sheet.widthMm - pageMargin * 2 + gap) / (cardW + gap)));
