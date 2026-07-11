@@ -308,13 +308,6 @@
             </div>
           </div>
 
-          <div class="form-group option-checkbox">
-            <label>
-              <input type="checkbox" id="badgeIncludeQr" />
-              Ajouter un QR code (fiche de contact à scanner)
-            </label>
-          </div>
-
           <button type="submit" class="btn btn-primary" id="badgeGenerateBtn">Générer le PDF</button>
           <p class="contact-feedback" id="badgeGeneratorFeedback" role="status"></p>
         </form>
@@ -381,7 +374,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <!-- MediaPipe Face Detection (module ES, exécution 100% dans le navigateur via WebAssembly).
        Le modèle IA (quelques Mo) est téléchargé au premier usage de l'outil "Photo pour badge" ;

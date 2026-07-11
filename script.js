@@ -79,7 +79,6 @@ const badgeLogoInput = document.getElementById("badgeLogoInput");
 const badgeLogoBtn = document.getElementById("badgeLogoBtn");
 const badgeLogoPreview = document.getElementById("badgeLogoPreview");
 const badgeLogoRemoveBtn = document.getElementById("badgeLogoRemoveBtn");
-const badgeIncludeQrCheckbox = document.getElementById("badgeIncludeQr");
 const badgeGenerateBtn = document.getElementById("badgeGenerateBtn");
 const badgeGeneratorFeedback = document.getElementById("badgeGeneratorFeedback");
 const badgePreviewCanvas = document.getElementById("badgePreviewCanvas");
@@ -985,7 +984,6 @@ contactForm?.addEventListener("submit", async (e) => {
    =========================================================== */
 
 const PLACEHOLDER_PHOTO_CANVAS = createPlaceholderPhotoCanvas();
-let badgePreviewToken = 0;
 
 function getBadgeSelection() {
   return getVisiblePhotos().filter((p) => p.selected);
@@ -1026,7 +1024,6 @@ document.addEventListener("keydown", (e) => {
 
 badgeCardFormatSelect?.addEventListener("change", renderBadgePreview);
 badgeSubtitleInput?.addEventListener("input", renderBadgePreview);
-badgeIncludeQrCheckbox?.addEventListener("change", renderBadgePreview);
 
 badgeLogoBtn?.addEventListener("click", () => badgeLogoInput.click());
 
@@ -1062,11 +1059,10 @@ function getBadgeRenderOptions() {
     formatKey: badgeCardFormatSelect.value,
     subtitle: badgeSubtitleInput.value.trim(),
     logoImage: badgeLogoImage,
-    includeQr: badgeIncludeQrCheckbox.checked,
   };
 }
 
-/* Dessine un badge (photo + nom + sous-titre + logo/QR optionnels) sur un nouveau canvas */
+/* Dessine un badge (photo + nom + sous-titre + logo optionnel) sur un nouveau canvas */
 function renderBadgeCanvas(photo, options) {
   const format = BADGE_CARD_FORMATS[options.formatKey];
   const w = Math.round(format.widthMm * BADGE_RENDER_SCALE);
@@ -1094,8 +1090,7 @@ function renderBadgeCanvas(photo, options) {
   return canvas;
 }
 
-/* Badge type carte CR80 : photo à gauche, texte au milieu, QR (si présent) dans sa propre
-   colonne à droite — jamais superposé au texte, contrairement à l'ancienne version. */
+/* Badge type carte CR80 : photo à gauche, texte à droite */
 function renderLandscapeBadge(ctx, w, h, margin, photo, options) {
   const photoSize = h - margin * 2;
   const photoX = margin;
@@ -1103,17 +1098,11 @@ function renderLandscapeBadge(ctx, w, h, margin, photo, options) {
 
   drawPhotoInBox(ctx, photo, photoX, photoY, photoSize, photoSize);
 
-  // Le QR code réserve sa propre colonne verticale à droite : le texte ne s'étend
-  // jamais dans cet espace, donc il ne peut plus être recouvert par le QR.
-  const qrSize = options.qrCanvas ? Math.min(h * 0.6, (w - photoSize - margin * 3) * 0.4) : 0;
-  const qrColumnW = options.qrCanvas ? qrSize + margin : 0;
-
   const textX = photoX + photoSize + margin;
-  const textRight = w - margin - qrColumnW;
-  const textMaxWidth = textRight - textX;
+  const textMaxWidth = w - margin - textX;
 
   if (options.logoImage) {
-    drawLogo(ctx, options.logoImage, textRight, margin, textMaxWidth, h * 0.22, "right");
+    drawLogo(ctx, options.logoImage, w - margin, margin, textMaxWidth, h * 0.22, "right");
   }
 
   ctx.fillStyle = "#111111";
@@ -1130,29 +1119,13 @@ function renderLandscapeBadge(ctx, w, h, margin, photo, options) {
     ctx.fillStyle = "#5a5a5a";
     ctx.fillText(options.subtitle, textX, nameStartY + nameLines.length * nameFontSize * 1.15 + subFontSize * 0.3, textMaxWidth);
   }
-
-  if (options.qrCanvas) {
-    const qrX = w - margin - qrSize;
-    const qrY = (h - qrSize) / 2;
-    ctx.drawImage(options.qrCanvas, qrX, qrY, qrSize, qrSize);
-  }
 }
 
-/* Badge type conférence : photo centrée en haut, texte en dessous, QR (si présent) dans
-   une bande réservée tout en bas — jamais superposé au nom / sous-titre. */
+/* Badge type conférence : photo centrée en haut, texte en dessous */
 function renderPortraitBadge(ctx, w, h, margin, photo, options) {
   const logoZoneH = options.logoImage ? h * 0.09 : 0;
-  const qrZoneH = options.qrCanvas ? h * 0.24 : 0;
-  // Espace toujours réservé sous la photo pour le nom + le sous-titre.
-  const nameZoneH = h * 0.22;
-
-  // La photo carrée était auparavant dimensionnée uniquement sur la largeur de la carte,
-  // ce qui pouvait la faire déborder sur l'espace du nom / du QR code (carte "conférence"
-  // plus haute que large). On la borne aussi par la hauteur réellement disponible.
-  const maxPhotoW = w - margin * 2;
-  const maxPhotoH = h - margin * 2 - logoZoneH - qrZoneH - nameZoneH;
-  const photoSize = Math.max(20, Math.min(maxPhotoW, maxPhotoH));
-  const photoX = (w - photoSize) / 2;
+  const photoSize = w - margin * 2;
+  const photoX = margin;
   const photoY = margin + logoZoneH;
 
   if (options.logoImage) {
@@ -1160,9 +1133,6 @@ function renderPortraitBadge(ctx, w, h, margin, photo, options) {
   }
 
   drawPhotoInBox(ctx, photo, photoX, photoY, photoSize, photoSize);
-
-  // Zone de texte bornée : elle ne descend jamais dans la bande réservée au QR code.
-  const textZoneBottom = h - margin - qrZoneH;
 
   ctx.fillStyle = "#111111";
   ctx.textAlign = "center";
@@ -1172,21 +1142,12 @@ function renderPortraitBadge(ctx, w, h, margin, photo, options) {
   const nameStartY = photoY + photoSize + h * 0.075;
   drawLines(ctx, nameLines, w / 2, nameStartY, nameFontSize * 1.2);
 
-  let cursorY = nameStartY + nameLines.length * nameFontSize * 1.2;
-
   if (options.subtitle) {
     const subFontSize = Math.round(h * 0.032);
-    const subtitleY = Math.min(cursorY + subFontSize * 0.5, textZoneBottom);
+    const cursorY = nameStartY + nameLines.length * nameFontSize * 1.2;
     ctx.font = `${subFontSize}px Arial, sans-serif`;
     ctx.fillStyle = "#5a5a5a";
-    ctx.fillText(options.subtitle, w / 2, subtitleY, w - margin * 2);
-  }
-
-  if (options.qrCanvas) {
-    const qrSize = Math.min(qrZoneH * 0.85, w * 0.32);
-    const qrX = (w - qrSize) / 2;
-    const qrY = h - margin - qrSize;
-    ctx.drawImage(options.qrCanvas, qrX, qrY, qrSize, qrSize);
+    ctx.fillText(options.subtitle, w / 2, cursorY + subFontSize * 0.5, w - margin * 2);
   }
 }
 
@@ -1234,108 +1195,6 @@ function drawLines(ctx, lines, x, y, lineHeight) {
   lines.forEach((line, i) => ctx.fillText(line, x, y + i * lineHeight));
 }
 
-/* Échappe les caractères spéciaux d'un champ vCard (norme RFC 6350) */
-function escapeVCardValue(value) {
-  return String(value)
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n");
-}
-
-/* Construit une fiche de contact (vCard) à partir du nom et du sous-titre du badge :
-   au scan, le QR code propose d'ajouter directement la personne aux contacts du téléphone,
-   au lieu de simplement afficher un texte déjà lisible sur le badge. */
-function buildBadgeVCard(name, subtitle) {
-  // qrcodejs encode le texte en UTF-8 sans déclarer d'indicateur ECI/UTF-8 dans le QR code :
-  // beaucoup de lecteurs (dont certains téléphones) retombent alors sur un décodage
-  // ISO-8859-1 par défaut et affichent un texte vide ou corrompu dès qu'il y a un accent.
-  // On retire donc les accents du contenu du QR pour garantir une lecture fiable partout.
-  const safeName = escapeVCardValue(stripAccents((name || "").trim() || "Badge"));
-  const lines = ["BEGIN:VCARD", "VERSION:3.0", `N:${safeName};;;;`, `FN:${safeName}`];
-  if (subtitle) {
-    lines.push(`ORG:${escapeVCardValue(stripAccents(subtitle))}`);
-  }
-  lines.push("END:VCARD");
-  return lines.join("\n");
-}
-
-/* Supprime les diacritiques (accents) d'une chaîne */
-function stripAccents(str) {
-  return String(str)
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-}
-
-/* Génère un canevas contenant un QR code (texte -> image), via la librairie qrcodejs */
-function generateQrCanvas(text, sizePx) {
-  return new Promise((resolve) => {
-    const content = text || " ";
-
-    // qrcodejs calcule lui-même sa taille de grille à partir du texte et du niveau de
-    // correction, en ignorant l'option "typeNumber" qu'on pourrait lui passer. Sa table
-    // d'estimation a un bug d'arrondi : pour certaines longueurs de texte pile à la
-    // frontière d'une taille de grille, elle lève "code length overflow" alors que le
-    // contenu tiendrait très bien avec un autre niveau de correction. On essaie donc les
-    // 4 niveaux disponibles, puis on raccourcit le texte en dernier recours plutôt que
-    // de faire planter la génération du badge.
-    function tryBuild(value) {
-      for (const level of [
-        QRCode.CorrectLevel.L,
-        QRCode.CorrectLevel.M,
-        QRCode.CorrectLevel.Q,
-        QRCode.CorrectLevel.H,
-      ]) {
-        const candidate = document.createElement("div");
-        candidate.style.position = "fixed";
-        candidate.style.left = "-9999px";
-        document.body.appendChild(candidate);
-
-        try {
-          new QRCode(candidate, { text: value, width: sizePx, height: sizePx, correctLevel: level });
-          return candidate;
-        } catch (err) {
-          document.body.removeChild(candidate);
-        }
-      }
-      return null;
-    }
-
-    let container = tryBuild(content);
-    let value = content;
-    while (!container && value.length > 10) {
-      value = value.slice(0, Math.floor(value.length * 0.85));
-      container = tryBuild(value);
-    }
-
-    if (!container) {
-      // Même un texte très court ne passe pas (cas extrême) : on renvoie un canvas vide
-      // plutôt que de faire planter la génération du badge.
-      const empty = document.createElement("canvas");
-      empty.width = sizePx;
-      empty.height = sizePx;
-      resolve(empty);
-      return;
-    }
-
-    setTimeout(() => {
-      const sourceCanvas = container.querySelector("canvas");
-      const sourceImg = container.querySelector("img");
-      const out = document.createElement("canvas");
-      out.width = sizePx;
-      out.height = sizePx;
-      const octx = out.getContext("2d");
-      if (sourceCanvas) {
-        octx.drawImage(sourceCanvas, 0, 0, sizePx, sizePx);
-      } else if (sourceImg) {
-        octx.drawImage(sourceImg, 0, 0, sizePx, sizePx);
-      }
-      document.body.removeChild(container);
-      resolve(out);
-    }, 60);
-  });
-}
-
 /* Crée une silhouette grise utilisée comme aperçu tant qu'aucune photo n'est sélectionnée */
 function createPlaceholderPhotoCanvas() {
   const canvas = document.createElement("canvas");
@@ -1355,24 +1214,14 @@ function createPlaceholderPhotoCanvas() {
 }
 
 /* Met à jour l'aperçu du badge en fonction des réglages actuels du formulaire */
-async function renderBadgePreview() {
+function renderBadgePreview() {
   if (!badgePreviewCanvas) return;
-  const token = ++badgePreviewToken;
 
   const options = getBadgeRenderOptions();
   const selection = getBadgeSelection();
   const previewPhoto = selection[0] || { canvas: PLACEHOLDER_PHOTO_CANVAS, name: "Nom Prénom" };
 
-  let qrCanvas = null;
-  if (options.includeQr) {
-    const format = BADGE_CARD_FORMATS[options.formatKey];
-    const qrPx = Math.round(Math.min(format.widthMm, format.heightMm) * BADGE_RENDER_SCALE * 0.32);
-    qrCanvas = await generateQrCanvas(buildBadgeVCard(previewPhoto.name || "Aperçu", options.subtitle), qrPx);
-  }
-
-  if (token !== badgePreviewToken) return; // une saisie plus récente a déjà relancé un rendu
-
-  const canvas = renderBadgeCanvas(previewPhoto, { ...options, qrCanvas });
+  const canvas = renderBadgeCanvas(previewPhoto, options);
   badgePreviewCanvas.width = canvas.width;
   badgePreviewCanvas.height = canvas.height;
   badgePreviewCanvas.getContext("2d").drawImage(canvas, 0, 0);
@@ -1440,13 +1289,7 @@ async function generateBadgePdf(photosList) {
     const x = offsetX + col * (cardW + gap);
     const y = offsetY + row * (cardH + gap);
 
-    let qrCanvas = null;
-    if (options.includeQr) {
-      const qrPx = Math.round(Math.min(cardW, cardH) * BADGE_RENDER_SCALE * 0.32);
-      qrCanvas = await generateQrCanvas(buildBadgeVCard(photo.name || `Badge ${i + 1}`, options.subtitle), qrPx);
-    }
-
-    const badgeCanvas = renderBadgeCanvas(photo, { ...options, qrCanvas });
+    const badgeCanvas = renderBadgeCanvas(photo, options);
     const imgData = badgeCanvas.toDataURL("image/jpeg", 0.92);
     doc.addImage(imgData, "JPEG", x, y, cardW, cardH);
     drawCutMarks(doc, x, y, cardW, cardH);
