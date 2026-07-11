@@ -20,7 +20,7 @@ const BADGE_FORMATS = {
 /* Clé d'accès Web3Forms pour le formulaire de contact.
    Créez une clé gratuite sur https://web3forms.com avec votre adresse email,
    puis remplacez la valeur ci-dessous par la clé obtenue. */
-const WEB3FORMS_ACCESS_KEY = "METTRE_LA_CLE_ICI";
+const WEB3FORMS_ACCESS_KEY = "a44fccb0-5418-4d81-8c85-8d5e73b89c4d";
 
 /* Formats de cartes disponibles pour le générateur de badges imprimables (en mm) */
 const BADGE_CARD_FORMATS = {
