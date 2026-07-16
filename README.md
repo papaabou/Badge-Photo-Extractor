@@ -11,7 +11,7 @@ Aucune donnée n'est envoyée à un serveur : tout le traitement (lecture du PDF
 
 ## Fonctionnement — Extraire depuis un PDF
 
-1. **Upload** — l'utilisateur choisit un PDF (bouton ou glisser-déposer).
+1. **Upload** — l'utilisateur choisit un PDF (bouton ou glisser-déposer). S'il dépose une image (JPG/PNG) sur cette même zone, l'application bascule automatiquement sur l'outil « Recadrer une photo » plutôt que d'afficher une erreur.
 2. **Lecture** — [PDF.js](https://mozilla.github.io/pdf.js/) charge le PDF page par page.
 3. **Extraction** — pour chaque page, on inspecte la liste d'opérateurs (`page.getOperatorList()`) à la recherche des instructions `paintImageXObject` / `paintImageXObjectRepeat`. Chaque image référencée est récupérée via `page.objs` (ou `page.commonObjs`), puis convertie en `<canvas>` (gestion des formats RGBA, RGB et niveaux de gris 1 bit, ainsi que des `ImageBitmap` déjà décodés par PDF.js).
 4. **Filtrage** — les images de moins de 50×50 px (souvent des logos/icônes) sont masquées par défaut, avec une option pour les afficher.

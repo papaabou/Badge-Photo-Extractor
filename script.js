@@ -174,7 +174,14 @@ function handleFile(file) {
     file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
   if (!isPdf) {
-    showError("Le fichier sélectionné n'est pas un PDF. Merci de choisir un fichier .pdf.");
+    if (file.type.startsWith("image/")) {
+      // Une image seule (JPG/PNG) : on bascule directement sur l'outil de recadrage
+      // dédié plutôt que d'obliger l'utilisateur à trouver le bon onglet lui-même.
+      activateTab("photo");
+      handlePpbFile(file);
+      return;
+    }
+    showError("Le fichier sélectionné n'est ni un PDF ni une image. Merci de choisir un fichier .pdf, .jpg ou .png.");
     return;
   }
 
