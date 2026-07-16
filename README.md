@@ -34,13 +34,23 @@ Le modèle de détection de visage (quelques Mo) est téléchargé depuis les se
 
 Aucune bibliothèque n'est installée localement : PDF.js, JSZip, jsPDF et MediaPipe Tasks Vision sont chargés depuis un CDN (cdnjs / jsDelivr) directement dans `index.html`.
 
+## Page dédiée au référencement (SEO)
+
+`photo-identite.html` (accessible en production sur `/photo-identite` grâce à `vercel.json`) est une page quasi-identique à `index.html`, mais avec l'outil « Recadrer une photo » actif par défaut, un `<title>`/`<meta description>`/`<h1>` ciblant les recherches type « photo d'identité gratuite en ligne », et un bloc de contenu explicatif en bas de page (FAQ courte). Les deux pages se renvoient l'une vers l'autre (footer + texte d'intro) pour le maillage interne. Elle réutilise entièrement `script.js`/`style.css` — aucune logique dupliquée.
+
+`robots.txt` et `sitemap.xml` référencent les deux pages.
+
 ## Structure du projet
 
 ```
 badge-photo-extractor/
-├── index.html   # Structure de la page
-├── style.css    # Design (dark mode par défaut, responsive)
-├── script.js    # Logique d'extraction, recadrage et export
+├── index.html           # Page principale (extraction PDF + recadrage photo)
+├── photo-identite.html  # Page SEO dédiée au recadrage photo (voir plus bas)
+├── style.css            # Design (dark mode par défaut, responsive)
+├── script.js            # Logique d'extraction, recadrage et export
+├── robots.txt
+├── sitemap.xml
+├── vercel.json          # cleanUrls (ex: /photo-identite au lieu de /photo-identite.html)
 └── README.md
 ```
 

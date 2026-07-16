@@ -520,6 +520,22 @@ body {
   margin-top: 8px;
 }
 
+.footer-tools {
+  font-size: 0.82rem;
+  margin: 0 0 4px;
+}
+
+.footer-tools a {
+  color: var(--text-faint);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.footer-tools a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 .footer-credit {
   font-size: 0.78rem;
   line-height: 1.6;
@@ -933,6 +949,43 @@ body {
   align-items: flex-end;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+/* ---------- Contenu de référencement (SEO) ---------- */
+
+.seo-content {
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.seo-content h2 {
+  font-size: 1.15rem;
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.seo-content h3 {
+  font-size: 0.95rem;
+  color: var(--text);
+  margin: 20px 0 6px;
+}
+
+.seo-content p {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+
+.tool-intro a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.tool-intro a:hover {
+  border-bottom-color: var(--accent);
 }
 
 /* ---------- Responsive ---------- */
