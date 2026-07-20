@@ -167,6 +167,15 @@ dropzone.addEventListener("drop", (e) => {
    Traitement du fichier PDF
    =========================================================== */
 
+/* Détecte une image à partir du type MIME, avec repli sur l'extension du fichier :
+   selon le système d'exploitation, file.type peut être vide ou absent (notamment pour
+   certains JPEG sous Windows), donc s'y fier seul fait passer de vraies images pour
+   des fichiers invalides. */
+function isImageFile(file) {
+  if (file.type.startsWith("image/")) return true;
+  return /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(file.name);
+}
+
 function handleFile(file) {
   hideError();
 
@@ -174,7 +183,7 @@ function handleFile(file) {
     file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
   if (!isPdf) {
-    if (file.type.startsWith("image/")) {
+    if (isImageFile(file)) {
       // Une image seule (JPG/PNG) : on bascule directement sur l'outil de recadrage
       // dédié plutôt que d'obliger l'utilisateur à trouver le bon onglet lui-même.
       activateTab("photo");
@@ -1601,7 +1610,7 @@ ppbDropzone?.addEventListener("drop", (e) => {
 function handlePpbFile(file) {
   hidePpbError();
 
-  if (!file.type.startsWith("image/")) {
+  if (!isImageFile(file)) {
     showPpbError("Le fichier sélectionné n'est pas une image (JPG ou PNG attendu).");
     return;
   }
