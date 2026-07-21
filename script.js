@@ -129,7 +129,14 @@ let badgeLogoImage = null; // <img> chargée depuis le fichier logo uploadé (ou
    Gestion de l'upload (clic + drag & drop)
    =========================================================== */
 
-chooseFileBtn.addEventListener("click", () => fileInput.click());
+chooseFileBtn.addEventListener("click", (e) => {
+  // Le bouton est imbriqué dans la zone de dépôt, qui ouvre elle aussi le sélecteur
+  // au clic : sans stopPropagation, un seul clic déclenchait fileInput.click() deux
+  // fois (une fois via le bouton, une fois via la remontée de l'événement vers la
+  // zone parente), ce qui perturbait la sélection et obligeait à cliquer deux fois.
+  e.stopPropagation();
+  fileInput.click();
+});
 dropzone.addEventListener("click", () => fileInput.click());
 dropzone.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") {
@@ -1584,7 +1591,13 @@ let ppbDragStartStateY = 0.5;
 
 /* ---------- Upload (clic + drag & drop) ---------- */
 
-ppbChooseBtn?.addEventListener("click", () => ppbFileInput.click());
+ppbChooseBtn?.addEventListener("click", (e) => {
+  // Même correctif que pour la zone PDF : le bouton est imbriqué dans la zone de
+  // dépôt, éviter le double déclenchement de ppbFileInput.click() via la remontée
+  // de l'événement.
+  e.stopPropagation();
+  ppbFileInput.click();
+});
 ppbDropzone?.addEventListener("click", () => ppbFileInput.click());
 ppbDropzone?.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") {
