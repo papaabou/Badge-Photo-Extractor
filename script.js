@@ -160,7 +160,16 @@ fileInput.addEventListener("change", () => {
 
 dropzone.addEventListener("drop", (e) => {
   const file = e.dataTransfer.files[0];
-  if (file) handleFile(file);
+  if (file) {
+    handleFile(file);
+  } else {
+    // Arrive par ex. quand on glisse une image depuis une page web (une URL, pas un
+    // vrai fichier) plutôt que depuis l'explorateur de fichiers : sans ce message,
+    // rien ne se passait, sans aucun retour pour l'utilisateur.
+    showError(
+      "Impossible de récupérer ce fichier depuis le glisser-déposer. Essayez de le glisser depuis l'explorateur de fichiers, ou utilisez le bouton « Choisir un PDF ou une photo »."
+    );
+  }
 });
 
 /* ===========================================================
@@ -1604,7 +1613,13 @@ ppbFileInput?.addEventListener("change", () => {
 
 ppbDropzone?.addEventListener("drop", (e) => {
   const file = e.dataTransfer.files[0];
-  if (file) handlePpbFile(file);
+  if (file) {
+    handlePpbFile(file);
+  } else {
+    showPpbError(
+      "Impossible de récupérer ce fichier depuis le glisser-déposer. Essayez de le glisser depuis l'explorateur de fichiers, ou utilisez le bouton « Choisir une photo »."
+    );
+  }
 });
 
 function handlePpbFile(file) {
