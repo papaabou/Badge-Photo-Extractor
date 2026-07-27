@@ -1164,6 +1164,22 @@ textarea:focus-visible,
   font-size: 0.9rem;
 }
 
+.how-it-works-list {
+  margin: 0 0 4px;
+  padding-left: 22px;
+  font-size: 0.9rem;
+}
+
+.how-it-works-list li {
+  margin-bottom: 6px;
+  line-height: 1.55;
+}
+
+.how-it-works-list li::marker {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .tool-intro a {
   color: var(--accent);
   text-decoration: none;
