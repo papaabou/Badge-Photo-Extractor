@@ -1106,6 +1106,20 @@ textarea:focus-visible,
   min-height: 1.2em;
 }
 
+.upload-tip {
+  margin: 10px 2px 0;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+.field-hint {
+  margin: 6px 2px 0;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
 .ppb-export-actions {
   display: flex;
   gap: 8px;

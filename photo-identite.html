@@ -207,6 +207,7 @@
           </div>
         </div>
         <p class="error-message" id="ppbErrorMessage" role="alert"></p>
+        <p class="upload-tip">📱 Astuce : sur téléphone, le bouton « Choisir une photo » propose aussi de prendre la photo directement avec l'appareil photo.</p>
 
         <!-- Sélection à partir des photos déjà extraites d'un PDF -->
         <div class="ppb-from-gallery" id="ppbFromGalleryWrap" hidden>
@@ -228,6 +229,7 @@
               <option value="ratio23">Format 2:3 (40 × 60 mm)</option>
               <option value="custom">Personnalisé…</option>
             </select>
+            <p class="field-hint">Détermine les dimensions finales de la photo téléchargée (en mm, à 300 DPI) — pas juste un aperçu, c'est le format réellement exporté.</p>
           </div>
 
           <div class="option-group ppb-custom-fields" id="ppbCustomFields" hidden>
@@ -260,13 +262,16 @@
           <button type="button" class="btn btn-secondary" id="ppbDownloadPngBtn">Télécharger en PNG</button>
           <button type="button" class="btn btn-secondary" id="ppbDownloadJpgBtn">Télécharger en JPG</button>
         </div>
+        <p class="field-hint">Une seule photo, recadrée au format choisi ci-dessus — le PNG garde une qualité maximale, le JPG est plus léger à partager.</p>
 
         <!-- Planche imprimable -->
         <div class="ppb-sheet-panel">
-          <h3 class="ppb-sheet-title">Planche imprimable</h3>
+          <h3 class="ppb-sheet-title">🖨️ Planche imprimable (plusieurs exemplaires sur une page)</h3>
           <p class="ppb-sheet-hint">
-            Génère une planche PDF avec votre photo répétée en grille et des traits de coupe,
-            prête à imprimer chez un tireur photo.
+            Contrairement aux boutons ci-dessus (une seule photo), ceci génère un PDF avec votre
+            photo <strong>répétée plusieurs fois</strong> sur une feuille 10×15 cm ou A4, avec des
+            traits de coupe — le fichier se télécharge automatiquement, prêt à imprimer chez un
+            tireur photo.
           </p>
           <div class="ppb-sheet-controls">
             <div class="option-group">
