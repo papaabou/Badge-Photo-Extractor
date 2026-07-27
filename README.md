@@ -5,7 +5,7 @@ Application web **100% côté client** avec deux outils, accessibles par onglets
 - **Extraire depuis un PDF** — extrait les photos contenues dans un fichier PDF, pour préparer des photos de badges.
 - **Recadrer une photo** — recadre une photo unique (upload ou déjà extraite d'un PDF) au bon format pour un badge, une carte d'étudiant, une licence sportive ou un trombinoscope.
 
-⚠️ Aucun de ces deux outils n'est destiné à un usage administratif officiel (pas de photo de passeport ou de CNI, pas de conformité au format e-photo).
+⚠️ Le format 35×45 mm convient aussi pour une photo d'identité ou de passeport, mais **n'est pas certifié conforme** aux normes officielles françaises (e-photo / ANTS). L'interface affiche cet avertissement à chaque endroit où ce format est proposé — à conserver si vous modifiez le code.
 
 Aucune donnée n'est envoyée à un serveur : tout le traitement (lecture du PDF, extraction des images, détection de visage, recadrage, export ZIP/PDF) se fait dans le navigateur de l'utilisateur.
 

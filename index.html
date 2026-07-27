@@ -117,9 +117,10 @@
           <label for="badgeFormat">Format badge (recadrage)</label>
           <select id="badgeFormat">
             <option value="original">Original (pas de recadrage)</option>
-            <option value="id35x45">Photo d'identité 35×45 mm</option>
+            <option value="id35x45">Photo d'identité 35×45 mm (badge / passeport*)</option>
             <option value="square">Carré 1:1</option>
           </select>
+          <p class="field-hint">*Dimensions standard, non certifiées conformes aux normes officielles (e-photo / ANTS) — vérifiez auprès de l'administration avant un usage passeport/CNI réel.</p>
         </div>
 
         <div class="option-group option-checkbox">
@@ -165,10 +166,13 @@
      <div id="photoToolPanel" hidden>
 
       <p class="tool-intro">
-        Recadrez une photo au format <strong>35×45 mm</strong> (badge standard), <strong>carré 1:1</strong>,
-        <strong>3:4</strong>, <strong>2:3</strong>, ou à des dimensions <strong>personnalisées</strong> —
-        pour un badge, une carte d'étudiant, une licence sportive ou un trombinoscope. Sans usage
-        administratif officiel (pas de passeport, pas de CNI).
+        Recadrez une photo au format <strong>35×45 mm</strong> (badge standard, identité / passeport),
+        <strong>carré 1:1</strong>, <strong>3:4</strong>, <strong>2:3</strong>, ou à des dimensions
+        <strong>personnalisées</strong> — pour un badge, une carte d'étudiant, une licence sportive,
+        un trombinoscope, ou une photo d'identité.
+        ⚠️ Ce format n'est <strong>pas certifié conforme</strong> aux normes officielles (e-photo /
+        ANTS) : pour un passeport ou une CNI, vérifiez l'acceptation auprès de l'administration
+        avant de l'utiliser pour une démarche réelle.
       </p>
 
       <!-- Zone d'upload d'une photo -->
@@ -199,13 +203,13 @@
           <div class="option-group">
             <label for="ppbFormat">Format de sortie</label>
             <select id="ppbFormat">
-              <option value="id35x45">35 × 45 mm (badge standard)</option>
+              <option value="id35x45">35 × 45 mm (badge / identité / passeport*)</option>
               <option value="square">Carré 1:1 (40 × 40 mm)</option>
               <option value="ratio34">Format 3:4 (30 × 40 mm)</option>
               <option value="ratio23">Format 2:3 (40 × 60 mm)</option>
               <option value="custom">Personnalisé…</option>
             </select>
-            <p class="field-hint">Détermine les dimensions finales de la photo téléchargée (en mm, à 300 DPI) — pas juste un aperçu, c'est le format réellement exporté.</p>
+            <p class="field-hint">Détermine les dimensions finales de la photo téléchargée (en mm, à 300 DPI) — pas juste un aperçu, c'est le format réellement exporté. *Le format 35×45mm n'est pas certifié conforme aux normes officielles (e-photo / ANTS) : vérifiez auprès de l'administration avant un usage passeport/CNI réel.</p>
           </div>
 
           <div class="option-group ppb-custom-fields" id="ppbCustomFields" hidden>
