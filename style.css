@@ -241,6 +241,15 @@ textarea:focus-visible,
   gap: 4px;
 }
 
+.tabs-hint {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 20px 10px;
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 .tab-btn {
   background: transparent;
   border: none;

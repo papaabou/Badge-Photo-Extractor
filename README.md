@@ -2,8 +2,8 @@
 
 Application web **100% côté client** avec deux outils, accessibles par onglets :
 
-- **Extraire depuis un PDF** — extrait les photos contenues dans un fichier PDF, pour préparer des photos de badges.
-- **Recadrer une photo** — recadre une photo unique (upload ou déjà extraite d'un PDF) au bon format pour un badge, une carte d'étudiant, une licence sportive ou un trombinoscope.
+- **Plusieurs photos (PDF)** — extrait les photos contenues dans un fichier PDF, pour préparer des photos de badges.
+- **Photo d'identité & impression** — recadre une photo unique (upload ou déjà extraite d'un PDF) au bon format pour un badge, une carte d'étudiant, une licence sportive, un trombinoscope ou une photo d'identité, puis génère une planche imprimable.
 
 ⚠️ Le format 35×45 mm convient aussi pour une photo d'identité ou de passeport, mais **n'est pas certifié conforme** aux normes officielles françaises (e-photo / ANTS). L'interface affiche cet avertissement à chaque endroit où ce format est proposé — à conserver si vous modifiez le code.
 
@@ -11,7 +11,7 @@ Aucune donnée n'est envoyée à un serveur : tout le traitement (lecture du PDF
 
 ## Fonctionnement — Extraire depuis un PDF
 
-1. **Upload** — l'utilisateur choisit un PDF (bouton ou glisser-déposer). S'il dépose une image (JPG/PNG) sur cette même zone, l'application bascule automatiquement sur l'outil « Recadrer une photo » plutôt que d'afficher une erreur.
+1. **Upload** — l'utilisateur choisit un PDF (bouton ou glisser-déposer). S'il dépose une image (JPG/PNG) sur cette même zone, l'application bascule automatiquement sur l'outil « Photo d'identité & impression » plutôt que d'afficher une erreur.
 2. **Lecture** — [PDF.js](https://mozilla.github.io/pdf.js/) charge le PDF page par page.
 3. **Extraction** — pour chaque page, on inspecte la liste d'opérateurs (`page.getOperatorList()`) à la recherche des instructions `paintImageXObject` / `paintImageXObjectRepeat`. Chaque image référencée est récupérée via `page.objs` (ou `page.commonObjs`), puis convertie en `<canvas>` (gestion des formats RGBA, RGB et niveaux de gris 1 bit, ainsi que des `ImageBitmap` déjà décodés par PDF.js).
 4. **Filtrage** — les images de moins de 50×50 px (souvent des logos/icônes) sont masquées par défaut, avec une option pour les afficher.
@@ -21,7 +21,7 @@ Aucune donnée n'est envoyée à un serveur : tout le traitement (lecture du PDF
 8. **Export** — téléchargement individuel en PNG, ou export groupé en ZIP (toutes les photos visibles, ou seulement la sélection) via [JSZip](https://stuk.github.io/jszip/).
 9. **Générateur de badges imprimables** — le bouton « 🪪 Générer les badges (PDF) » ouvre un panneau permettant de choisir un format de carte (CR80 86×54 mm ou badge conférence 90×120 mm), un sous-titre commun et un logo d'entreprise, puis génère une planche PDF A4 (via [jsPDF](https://github.com/parallax/jsPDF)) avec autant de badges que possible par page et des repères de coupe aux 4 coins.
 
-## Fonctionnement — Recadrer une photo
+## Fonctionnement — Photo d'identité & impression
 
 1. **Source** — l'utilisateur upload une photo (JPG/PNG, bouton ou glisser-déposer) ou choisit une photo déjà extraite dans l'onglet PDF (miniatures affichées si des photos existent).
 2. **Détection de visage** — [MediaPipe Face Detection](https://ai.google.dev/edge/mediapipe/solutions/vision/face_detector) (modèle `blaze_face_short_range`, chargé en module ES depuis un CDN, exécuté 100% dans le navigateur via WebAssembly) propose un cadrage centré sur le visage détecté, avec le visage occupant environ 65% de la hauteur du cadre. **Si aucun visage n'est détecté (ou si le modèle ne charge pas), l'outil bascule silencieusement sur un cadrage centré simple** — jamais d'erreur bloquante.
@@ -36,7 +36,7 @@ Aucune bibliothèque n'est installée localement : PDF.js, JSZip, jsPDF et Media
 
 ## Page dédiée au référencement (SEO)
 
-`photo-identite.html` (accessible en production sur `/photo-identite` grâce à `vercel.json`) est une page quasi-identique à `index.html`, mais avec l'outil « Recadrer une photo » actif par défaut, un `<title>`/`<meta description>`/`<h1>` ciblant les recherches type « photo d'identité gratuite en ligne », et un bloc de contenu explicatif en bas de page (FAQ courte). Les deux pages se renvoient l'une vers l'autre (footer + texte d'intro) pour le maillage interne. Elle réutilise entièrement `script.js`/`style.css` — aucune logique dupliquée.
+`photo-identite.html` (accessible en production sur `/photo-identite` grâce à `vercel.json`) est une page quasi-identique à `index.html`, mais avec l'outil « Photo d'identité & impression » actif par défaut, un `<title>`/`<meta description>`/`<h1>` ciblant les recherches type « photo d'identité gratuite en ligne », et un bloc de contenu explicatif en bas de page (FAQ courte). Les deux pages se renvoient l'une vers l'autre (footer + texte d'intro) pour le maillage interne. Elle réutilise entièrement `script.js`/`style.css` — aucune logique dupliquée.
 
 `robots.txt` et `sitemap.xml` référencent les deux pages.
 
@@ -109,4 +109,4 @@ Toutes les opérations sur les PDF et les photos (lecture, extraction, détectio
 
 Deux exceptions, aucune ne concernant les photos de l'utilisateur :
 - Le formulaire de contact envoie le nom, l'email et le message saisis à l'API de [Web3Forms](https://web3forms.com) (service tiers) au moment de l'envoi.
-- L'outil « Recadrer une photo » télécharge le modèle de détection de visage (fichiers publics, quelques Mo) depuis les CDN Google/jsDelivr au premier usage.
+- L'outil « Photo d'identité & impression » télécharge le modèle de détection de visage (fichiers publics, quelques Mo) depuis les CDN Google/jsDelivr au premier usage.
