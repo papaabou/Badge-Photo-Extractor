@@ -1988,3 +1988,45 @@ ppbGenerateSheetBtn?.addEventListener("click", async () => {
     ppbGenerateSheetBtn.textContent = originalLabel;
   }
 });
+
+/* ===========================================================
+   Démo animée "Comment ça marche" (illustrations qui s'enchaînent,
+   pas une vraie vidéo — voir index.html / photo-identite.html)
+   =========================================================== */
+
+(function setupDemoWalkthrough() {
+  const steps = document.querySelectorAll(".demo-step");
+  const illustrations = document.querySelectorAll(".demo-illustration");
+  if (!steps.length || !illustrations.length) return;
+
+  let current = 0;
+  let timer = null;
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function showStep(index) {
+    current = index;
+    steps.forEach((el, i) => el.classList.toggle("active", i === index));
+    illustrations.forEach((el, i) => el.classList.toggle("active", i === index));
+  }
+
+  function stopAutoAdvance() {
+    if (timer) clearInterval(timer);
+    timer = null;
+  }
+
+  function startAutoAdvance() {
+    if (prefersReducedMotion) return;
+    stopAutoAdvance();
+    timer = setInterval(() => showStep((current + 1) % steps.length), 2800);
+  }
+
+  steps.forEach((btn, i) => {
+    btn.addEventListener("click", () => {
+      showStep(i);
+      startAutoAdvance();
+    });
+  });
+
+  showStep(0);
+  startAutoAdvance();
+})();

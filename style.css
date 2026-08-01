@@ -226,6 +226,101 @@ textarea:focus-visible,
   line-height: 1.4;
 }
 
+/* ---------- Démo animée "Comment ça marche" ---------- */
+
+.demo-walkthrough {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 4px 20px 44px;
+}
+
+.demo-title {
+  margin: 0 0 20px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.demo-stage {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 22px;
+}
+
+.demo-frame {
+  position: relative;
+  width: 220px;
+  height: 160px;
+}
+
+.demo-illustration {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.demo-illustration.active {
+  opacity: 1;
+}
+
+.demo-illustration svg {
+  width: 100%;
+  height: 100%;
+}
+
+.demo-steps {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.demo-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px 6px 6px;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 0.78rem;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.demo-step:hover {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+.demo-step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.demo-step.active {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.demo-step.active .demo-step-num {
+  background: var(--accent);
+  color: #fff;
+}
+
 /* ---------- Onglets ---------- */
 
 .tabs {
@@ -1261,6 +1356,16 @@ textarea:focus-visible,
   .tab-btn {
     white-space: nowrap;
     padding: 12px 12px;
+  }
+
+  .demo-steps {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .demo-frame {
+    width: 180px;
+    height: 130px;
   }
 
   .ppb-export-actions .btn {
